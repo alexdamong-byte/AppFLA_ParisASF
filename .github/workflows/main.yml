@@ -1,13 +1,16 @@
-name: Scraping FLA
+name: Génération API FLA
 
 on:
   schedule:
-    - cron: '0 8 * * *' # S'exécute tous les jours à 8h00 UTC
-  workflow_dispatch: # Permet de lancer le script manuellement via un bouton
+    - cron: '0 8 * * *' # Tous les jours à 8h
+  workflow_dispatch: # Bouton manuel
 
 jobs:
   run-bot:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # Autorise le bot à écrire dans le dépôt
+      
     steps:
       - name: Récupérer le code
         uses: actions/checkout@v4
@@ -20,5 +23,13 @@ jobs:
       - name: Installer les bibliothèques
         run: pip install -r requirements.txt
         
-      - name: Lancer le script
+      - name: Lancer le script (Générer le JSON)
         run: python bot_fla.py
+        
+      - name: Sauvegarder et publier le JSON
+        run: |
+          git config --global user.name "Bot-FLA"
+          git config --global user.email "bot@actions.github.com"
+          git add classement.json
+          git commit -m "Mise à jour automatique du classement" || echo "Aucun changement à sauvegarder"
+          git push
