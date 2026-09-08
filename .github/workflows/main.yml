@@ -1,0 +1,24 @@
+name: Scraping FLA
+
+on:
+  schedule:
+    - cron: '0 8 * * *' # S'exécute tous les jours à 8h00 UTC
+  workflow_dispatch: # Permet de lancer le script manuellement via un bouton
+
+jobs:
+  run-bot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+        
+      - name: Installer Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          
+      - name: Installer les bibliothèques
+        run: pip install -r requirements.txt
+        
+      - name: Lancer le script
+        run: python bot_fla.py
