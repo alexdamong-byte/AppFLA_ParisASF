@@ -1,0 +1,9 @@
+[
+    {
+        "lieu": "{{$index}}",
+        "date": "{{team.Nom}}",
+        "equipe_domicile": "{{team.Points}}",
+        "score_ou_statut": "{{team.Victoire + team.Egalite + team.Defaite}}",
+        "equipe_exterieur": "{{team.Victoire}}"
+    }
+]
