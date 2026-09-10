@@ -12,7 +12,7 @@ def generer_api_calendrier():
 
     # On envoie l'identifiant de Paris ASF (6463)
     payload = {
-        "equipeId": 6463 
+        "idEquipe": 6463 
     }
 
     print("Téléchargement du calendrier brut en cours...")
