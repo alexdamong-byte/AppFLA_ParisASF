@@ -2,22 +2,27 @@ import requests
 import json
 
 def generer_api_classement():
-    url = "https://www.football-loisir-amateur.com/Home/GetClassement/135815"
+    # On retire les chiffres de l'URL, le serveur les veut dans le "payload"
+    url = "https://www.football-loisir-amateur.com/Home/GetClassement"
     
-    # On met un User-Agent ultra complet de vrai navigateur pour contourner les blocages
     headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
         "Accept": "application/json, text/javascript, */*; q=0.01",
         "X-Requested-With": "XMLHttpRequest"
     }
 
+    # Voici la valise de données exigée par le serveur (tes identifiants)
+    payload = {
+        "championnatId": 1358,
+        "saisonId": 15
+    }
+
     print("Téléchargement des données brutes en cours...")
     
-    # On utilise POST (très souvent obligatoire sur les API ASP.NET pour le JSON)
-    reponse = requests.post(url, headers=headers)
+    # On ajoute json=payload pour l'envoyer correctement au serveur
+    reponse = requests.post(url, json=payload, headers=headers)
     
     try:
-        # On tente de décoder le JSON
         donnees = reponse.json()
         
         with open('classement.json', 'w', encoding='utf-8') as f:
@@ -26,10 +31,9 @@ def generer_api_classement():
         print(f"✅ Fichier JSON généré avec succès ! ({len(donnees)} équipes traitées)")
         
     except requests.exceptions.JSONDecodeError:
-        # Si ça plante, on ne crash plus, on affiche ce que le serveur a osé nous répondre
         print("❌ ÉCHEC : Le serveur n'a pas renvoyé de JSON valide.")
         print(f"Code HTTP reçu : {reponse.status_code}")
-        print("Voici les 500 premiers caractères de ce qu'il a renvoyé :")
+        print("Voici les 500 premiers caractères :")
         print(reponse.text[:500])
 
 if __name__ == "__main__":
