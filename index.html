@@ -200,17 +200,13 @@ const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()} ${d.get
 
 async function loadDonneesFLA(){
  try{
-  const [calRes, clRes] = await Promise.all([fetch("calendrier.json"), fetch("classement.json")]);
-  const cal = await calRes.json(), cl = await clRes.json();
-  const key = Object.keys(cal).find(k => cal[k].every(m=>m.Equipedom==="PARIS ASF"||m.Equipeext==="PARIS ASF"));
-  matches = (key ? cal[key] : []).map(m=>{
-   const dt = new Date(parseInt(m.Date.slice(6,-2)));
-   const joue = m.EtatFinal && m.Scoredom!==null && m.Scoreext!==null;
-   return {id:`${m.IdEquipeDom}-${m.IdEquipeExt}-${m.Date}`, comp:"Championnat", dt, home:m.Equipedom, away:m.Equipeext,
-    venue:m.Terrain||"Lieu à confirmer", status: joue?"past":"upcoming",
-    score: joue?[m.Scoredom,m.Scoreext]:null, presence:{}};
-  }).sort((a,b)=>a.dt-b.dt);
-  ranking = cl.map(r=>({p:r.Nom, pt:r.Points, j:r.Victoire+r.Egalite+r.Defaite, g:r.Victoire, n:r.Egalite, l:r.Defaite, me:r.Nom==="PARIS ASF"}))
+  const [mRes, clRes] = await Promise.all([fetch("matches.json"), fetch("classement.json")]);
+  const rawMatches = await mRes.json(), cl = await clRes.json();
+  matches = rawMatches.filter(m=>m.date).map((m,idx)=>({
+   id:`${idx}-${m.date}`, comp:m.competition, dt:new Date(m.date), home:m.domicile, away:m.exterieur,
+   venue:m.venue||"Lieu à confirmer", status:m.statut, score:m.score, presence:{}
+  })).sort((a,b)=>a.dt-b.dt);
+  ranking = cl.map(r=>({p:r.equipe, pt:r.points, j:r.joues, g:r.gagnes, n:r.nuls, l:r.perdus, me:r.equipe==="PARIS ASF"}))
    .sort((a,b)=>b.pt-a.pt);
  }catch(e){ console.error("Chargement FLA impossible", e); }
 }
