@@ -8,38 +8,6 @@
     "perdus": 0
   },
   {
-    "equipe": "FC TIKITACOS",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "PANAMPRIDE FC B",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "PANAMPRIDE FC C",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "LA MEUTE",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
     "equipe": "CLAN TETARD FC",
     "points": 0,
     "joues": 0,
@@ -48,7 +16,15 @@
     "perdus": 0
   },
   {
-    "equipe": "TECHNIP",
+    "equipe": "FC PARIS CLICHY B",
+    "points": 0,
+    "joues": 0,
+    "gagnes": 0,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
+    "equipe": "FC TIKITACOS",
     "points": 0,
     "joues": 0,
     "gagnes": 0,
@@ -72,7 +48,31 @@
     "perdus": 0
   },
   {
-    "equipe": "PAZIZOU FC A",
+    "equipe": "LA MEUTE",
+    "points": 0,
+    "joues": 0,
+    "gagnes": 0,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
+    "equipe": "LE TIR ASCBB C",
+    "points": 0,
+    "joues": 0,
+    "gagnes": 0,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
+    "equipe": "PANAMPRIDE FC B",
+    "points": 0,
+    "joues": 0,
+    "gagnes": 0,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
+    "equipe": "PANAMPRIDE FC C",
     "points": 0,
     "joues": 0,
     "gagnes": 0,
@@ -88,7 +88,7 @@
     "perdus": 0
   },
   {
-    "equipe": "FC PARIS CLICHY B",
+    "equipe": "PAZIZOU FC A",
     "points": 0,
     "joues": 0,
     "gagnes": 0,
@@ -96,7 +96,7 @@
     "perdus": 0
   },
   {
-    "equipe": "LE TIR ASCBB C",
+    "equipe": "TECHNIP",
     "points": 0,
     "joues": 0,
     "gagnes": 0,
