@@ -24,6 +24,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Lancer le scraper (nouveau site FLA)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scrape_fla.py
 
       - name: Sauvegarder et publier les JSON
