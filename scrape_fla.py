@@ -85,11 +85,60 @@ def parse_classement():
         rows.append({"equipe": equipe, "points": pts, "joues": j, "gagnes": g, "nuls": n, "perdus": p})
     return rows
 
+def source_id(m):
+    # Même formule que côté front (index.html) pour pouvoir relier les deux.
+    return f"{m['competition']}|{m['domicile']}|{m['exterieur']}|{m['date']}"
+
+def sync_to_supabase(matches):
+    import os
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not url or not key:
+        print("⚠️  SUPABASE_URL / SUPABASE_SERVICE_KEY absents — synchro Supabase ignorée.")
+        return
+    headers = {
+        "apikey": key, "Authorization": f"Bearer {key}",
+        "Content-Type": "application/json", "Prefer": "resolution=merge-duplicates",
+    }
+    # Saison active (optionnel, laissé vide si introuvable)
+    saison_id = None
+    try:
+        r = requests.get(f"{url}/rest/v1/saisons?active=eq.true&select=id", headers=headers, timeout=15)
+        rows = r.json()
+        if rows: saison_id = rows[0]["id"]
+    except Exception as e:
+        print("⚠️  Récupération de la saison active impossible :", e)
+
+    payload = []
+    for m in matches:
+        if not m["date"]:
+            continue
+        payload.append({
+            "source_id": source_id(m),
+            "saison_id": saison_id,
+            "competition": "coupe" if m["competition"] == "Coupe" else "championnat",
+            "date_heure": m["date"] + "+02:00",  # heure de Paris (à ajuster en hiver si besoin)
+            "equipe_domicile": m["domicile"],
+            "equipe_exterieur": m["exterieur"],
+            "adresse_stade": m["venue"],
+            "score_domicile": m["score"][0] if m["score"] else None,
+            "score_exterieur": m["score"][1] if m["score"] else None,
+            "statut": "termine" if m["statut"] == "past" else "a_venir",
+        })
+    if not payload:
+        print("⚠️  Aucun match avec date valide à synchroniser."); return
+    r = requests.post(f"{url}/rest/v1/matchs?on_conflict=source_id", headers=headers, json=payload, timeout=30)
+    if r.status_code in (200, 201):
+        print(f"✅ {len(payload)} matchs synchronisés dans Supabase")
+    else:
+        print(f"❌ Erreur synchro Supabase ({r.status_code}) : {r.text[:500]}")
+
 if __name__ == "__main__":
     matches = parse_matches()
     with open("matches.json", "w", encoding="utf-8") as f:
         json.dump(matches, f, ensure_ascii=False, indent=2)
     print(f"✅ {len(matches)} matchs écrits dans matches.json")
+    sync_to_supabase(matches)
 
     classement = parse_classement()
     with open("classement.json", "w", encoding="utf-8") as f:
