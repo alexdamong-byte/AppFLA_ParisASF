@@ -91,10 +91,13 @@ def source_id(m):
 
 def sync_to_supabase(matches):
     import os
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_KEY")
+    url = (os.environ.get("SUPABASE_URL") or "").strip().strip('"').strip("'").rstrip("/")
+    key = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip().strip('"').strip("'")
     if not url or not key:
         print("⚠️  SUPABASE_URL / SUPABASE_SERVICE_KEY absents — synchro Supabase ignorée.")
+        return
+    if not url.startswith("http"):
+        print(f"❌ SUPABASE_URL invalide (doit commencer par https://) — valeur actuelle : {len(url)} caractère(s), ne commence pas par http.")
         return
     headers = {
         "apikey": key, "Authorization": f"Bearer {key}",
