@@ -30,70 +30,44 @@ def get_text_lines(url):
     return [l.strip() for l in text.split("\n") if l.strip()], soup
 
 def parse_matches():
-    lines, _ = get_text_lines(f"{BASE}/teams/{TEAM_ID}")
+    lines, soup = get_text_lines(f"{BASE}/teams/{TEAM_ID}")
+    text = re.sub(r"\s+", " ", soup.get_text(" ")).strip()
     try:
-        start = lines.index("Toutes les rencontres de la saison") + 1
+        start = text.index("Toutes les rencontres de la saison")
+        end = text.index("Matchs à venir", start)
     except ValueError:
-        raise RuntimeError("Section 'Toutes les rencontres de la saison' introuvable — le site a peut-être changé.")
-    try:
-        end = lines.index("Matchs à venir", start)
-    except ValueError:
-        end = len(lines)
-    section = lines[start:end]
+        raise RuntimeError("Sections introuvables — le site a peut-être changé.")
+    section = text[start:end]
 
-    matches, i = [], 0
-    while i < len(section):
-        line = section[i]
-        if line.startswith("Coupe") or line.startswith("Championnat"):
-            comp_type = "Coupe" if line.startswith("Coupe") else "Championnat"
-            comp_name = re.sub(r"\s+(Domicile|Extérieur)$", "", line[len(comp_type):].strip(" —"))
-            journee_m = re.search(r"Journée\s*(\d+)", comp_name)
-            journee = int(journee_m.group(1)) if journee_m else None
-            i += 1
-            recoit = None; opponent = None
-            while i < len(section) and not (section[i].startswith("Reçoit") or section[i].startswith("Se déplace chez")):
-                i += 1
-            if i < len(section):
-                if section[i].startswith("Reçoit"):
-                    recoit = True; opponent = section[i][len("Reçoit"):].strip()
-                else:
-                    recoit = False; opponent = section[i][len("Se déplace chez"):].strip()
-                i += 1
-            date_iso = None
-            while i < len(section) and not DATE_RE.search(section[i]):
-                i += 1
-            if i < len(section):
-                jr, d, mo, y = DATE_RE.search(section[i]).groups()
-                i += 1
-                hh = mm = None
-                venue_parts = []
-                while i < len(section) and not (SCORE_RE.match(section[i]) or section[i] == "À jouer"):
-                    tm = TIME_RE.search(section[i])
-                    if tm and hh is None:
-                        hh, mm = tm.groups()
-                    else:
-                        v = section[i].lstrip("· ").strip()
-                        if v: venue_parts.append(v)
-                    i += 1
-                venue = " ".join(venue_parts) if venue_parts else "Lieu à confirmer"
-                if hh:
-                    date_iso = f"{y}-{MOIS[mo]:02d}-{int(d):02d}T{int(hh):02d}:{mm}:00"
-                score = None; statut = "upcoming"
-                if i < len(section):
-                    sm = SCORE_RE.match(section[i])
-                    if sm:
-                        own, opp = int(sm.group(1)), int(sm.group(2))
-                        score = [own, opp] if recoit else [opp, own]
-                        statut = "past"
-                    i += 1
-                matches.append({
-                    "competition": comp_type, "competition_nom": comp_name, "journee": journee,
-                    "domicile": "PARIS ASF" if recoit else opponent,
-                    "exterieur": opponent if recoit else "PARIS ASF",
-                    "date": date_iso, "venue": venue, "score": score, "statut": statut,
-                })
+    mois_alt = "|".join(MOIS)
+    pat = re.compile(
+        r"(Coupe|Championnat)\s+(.*?)\s+(?:Domicile|Extérieur)\s+"
+        r"(Reçoit|Se déplace chez)\s+(.*?)\s+"
+        rf"(?:{JOURS})\.\s*(\d{{1,2}})\s+({mois_alt})\.?\s+(\d{{4}})[\s·]+"
+        r"(\d{1,2})h(\d{2})[\s·]+"
+        r"(.*?)\s+"
+        r"(?:(\d+)\s*–\s*(\d+)\s*[VDN]|À jouer)"
+    )
+    matches = []
+    for m in pat.finditer(section):
+        comp_type, comp_name, sens, opponent, d, mo, y, hh, mm, venue, own, opp = m.groups()
+        venue = re.sub(r"\s*\(ouvre l'itinéraire.*?\)\s*$", "", venue).strip()
+        recoit = (sens == "Reçoit")
+        date_iso = f"{y}-{MOIS[mo]:02d}-{int(d):02d}T{int(hh):02d}:{mm}:00"
+        if own is not None:
+            own, opp = int(own), int(opp)
+            score = [own, opp] if recoit else [opp, own]
+            statut = "past"
         else:
-            i += 1
+            score, statut = None, "upcoming"
+        journee_m = re.search(r"Journée\s*(\d+)", comp_name)
+        matches.append({
+            "competition": comp_type, "competition_nom": comp_name.strip(" —"),
+            "journee": int(journee_m.group(1)) if journee_m else None,
+            "domicile": "PARIS ASF" if recoit else opponent.strip(),
+            "exterieur": opponent.strip() if recoit else "PARIS ASF",
+            "date": date_iso, "venue": venue or "Lieu à confirmer", "score": score, "statut": statut,
+        })
     return matches
 
 def parse_classement():
