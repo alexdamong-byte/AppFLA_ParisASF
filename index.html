@@ -159,24 +159,24 @@ const SUPABASE_URL = "https://wwesvvclxvgktgchmwmf.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3ZXN2dmNseHZna3RnY2htd21mIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTA2ODIzMDcsImV4cCI6MjEwNjI1ODMwN30.4_SA-HnMKP73noJ6QOeUJJ8dViCOp3WzLhN-w7H8K2Q";
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let ME="", MY_EMAIL="", ROLE="joueur", currentTab="cal", currentMatch=null, theme="light";
+let ME="", MY_ID="", MY_EMAIL="", ROLE="joueur", currentTab="cal", currentMatch=null, theme="light";
 const initials=n=>n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
 const cleanVenue=v=>(v||"").replace(/\s*\(ouvre l'itinéraire[^)]*\)\s*/gi,"").trim()||"Lieu à confirmer";
-let effectif=[];
+let effectif=[]; // [{id, nom}]
 
 async function loadJoueurEtDemarre(session){
  const email = session.user.email;
- const {data, error} = await sb.from("joueurs").select("nom,role").eq("email", email).maybeSingle();
+ const {data, error} = await sb.from("joueurs").select("id,nom,role").eq("email", email).maybeSingle();
  if(error || !data){
   document.getElementById("loginMsg").innerHTML = "Cet email ne fait pas partie de l'effectif enregistré.";
   document.getElementById("loginMsg").classList.add("err");
   await sb.auth.signOut();
   return;
  }
- ME = data.nom; ROLE = data.role; MY_EMAIL = email;
- const {data: tousJoueurs} = await sb.from("joueurs").select("nom").eq("actif", true);
- effectif = (tousJoueurs||[]).map(j=>j.nom);
- if(!effectif.includes(ME)) effectif.push(ME);
+ ME = data.nom; MY_ID = data.id; ROLE = data.role; MY_EMAIL = email;
+ const {data: tousJoueurs} = await sb.from("joueurs").select("id,nom").eq("actif", true);
+ effectif = tousJoueurs||[];
+ if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME});
  await loadDonneesFLA();
  document.getElementById("loginScreen").style.display="none";
  document.getElementById("app").style.display="block";
@@ -202,13 +202,17 @@ const fmtDay=d=>d.getDate().toString().padStart(2,"0");
 const fmtMonAbbr=d=>MOIS[d.getMonth()].slice(0,3)+".";
 const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()} ${d.getFullYear()}`;
 
+const sourceId = m => `${m.competition}|${m.domicile}|${m.exterieur}|${m.date}`;
+
 async function loadDonneesFLA(){
  try{
   const [mRes, clRes] = await Promise.all([fetch("matches.json"), fetch("classement.json")]);
   const rawMatches = await mRes.json(), cl = await clRes.json();
+  const {data: dbMatches} = await sb.from("matchs").select("id,source_id");
+  const dbBySource = {}; (dbMatches||[]).forEach(r=>dbBySource[r.source_id]=r.id);
   matches = rawMatches.filter(m=>m.date).map((m,idx)=>({
-   id:`${idx}-${m.date}`, comp:m.competition, dt:new Date(m.date), home:m.domicile, away:m.exterieur,
-   venue:cleanVenue(m.venue), status:m.statut, score:m.score, presence:{}
+   id:`${idx}-${m.date}`, dbId: dbBySource[sourceId(m)]||null, comp:m.competition, dt:new Date(m.date),
+   home:m.domicile, away:m.exterieur, venue:cleanVenue(m.venue), status:m.statut, score:m.score, presence:{}
   })).sort((a,b)=>a.dt-b.dt);
   ranking = cl.map(r=>({p:r.equipe, pt:r.points, j:r.joues, g:r.gagnes, n:r.nuls, l:r.perdus, me:r.equipe==="PARIS ASF"}))
    .sort((a,b)=>b.pt-a.pt);
@@ -225,8 +229,40 @@ const notifs=[
 
 function groupCounts(m){
  const g={yes:[],no:[],wait:[]};
- effectif.forEach(n=>{const p=(m.presence||{})[n]; g[p==="yes"?"yes":p==="no"?"no":"wait"].push(n);});
+ effectif.forEach(j=>{const p=(m.presenceReal||{})[j.id]; g[p==="oui"?"yes":p==="non"?"no":"wait"].push(j.nom);});
  return g;
+}
+async function loadPresences(m){
+ if(!m.dbId) return;
+ const {data} = await sb.from("presences").select("joueur_id,statut").eq("match_id", m.dbId);
+ m.presenceReal = {}; (data||[]).forEach(r=>m.presenceReal[r.joueur_id]=r.statut);
+}
+async function setPresence(m, statut){
+ if(!m.dbId) return;
+ await sb.from("presences").upsert(
+  {match_id:m.dbId, joueur_id:MY_ID, statut, updated_at:new Date().toISOString()},
+  {onConflict:"match_id,joueur_id"}
+ );
+ await loadPresences(m); render();
+}
+
+async function loadPastMatchData(m){
+ if(!m.dbId) return;
+ const {data:pres} = await sb.from("presences").select("joueur_id,a_reellement_joue").eq("match_id", m.dbId);
+ m.presenceAll = pres||[];
+ m.playersOk = effectif.filter(j=>(pres||[]).some(r=>r.joueur_id===j.id && r.a_reellement_joue));
+ const {data:votes} = await sb.from("votes_homme_du_match").select("votant_id,candidat_id").eq("match_id", m.dbId);
+ m.myVote = (votes||[]).find(v=>v.votant_id===MY_ID)?.candidat_id || null;
+ m.voteCounts = {}; (votes||[]).forEach(v=>{m.voteCounts[v.candidat_id]=(m.voteCounts[v.candidat_id]||0)+1;});
+ m.voteVisible = (Date.now()-m.dt.getTime()) >= 48*3600*1000;
+}
+async function setJoueReel(m, joueurId, joue){
+ await sb.from("presences").upsert({match_id:m.dbId, joueur_id:joueurId, a_reellement_joue:joue}, {onConflict:"match_id,joueur_id"});
+ await loadPastMatchData(m); render();
+}
+async function voter(m, candidatId){
+ await sb.from("votes_homme_du_match").upsert({match_id:m.dbId, votant_id:MY_ID, candidat_id:candidatId}, {onConflict:"match_id,votant_id"});
+ await loadPastMatchData(m); render();
 }
 
 function matchRow(m, isNext){
@@ -251,7 +287,8 @@ function viewRank(){
  </table></div>`;
 }
 function viewClub(){
- const tot={j:club.reduce((a,c)=>a+c.j,0),b:club.reduce((a,c)=>a+c.b,0),pd:club.reduce((a,c)=>a+c.pd,0)};
+ const jEquipe = matches.filter(m=>m.status==="past").length;
+ const tot={j:jEquipe,b:club.reduce((a,c)=>a+c.b,0),pd:club.reduce((a,c)=>a+c.pd,0)};
  return `<h2 class="title">CLUB</h2><div class="sheet-card" style="padding:6px 8px"><table><tr><th>Joueurs</th><th>J</th><th>B</th><th>PD</th><th>GB</th><th>HM</th></tr>
  ${club.map(p=>`<tr><td>${p.n}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
  <tr class="tot"><td>PARIS ASF</td><td>${tot.j}</td><td>${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
@@ -268,30 +305,55 @@ function viewMatch(m){
   <div class="teamrow"><span>${m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
  </div>`;
  if(m.status==="upcoming"){
-  const p=m.presence[ME];
+  if(!m.dbId){
+   h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base — présence indisponible pour l'instant.</div>`;
+   return h;
+  }
+  const p=(m.presenceReal||{})[MY_ID];
   const g=groupCounts(m);
   h+=`<h3 class="sect">Présence</h3><div class="card">
-   <div class="oui-non"><button class="${p==='yes'?'yesOn':''}" data-pres="yes">OUI</button><button class="${p==='no'?'noOn':''}" data-pres="no">NON</button></div>
+   <div class="oui-non"><button class="${p==='oui'?'yesOn':''}" data-pres="oui">OUI</button><button class="${p==='non'?'noOn':''}" data-pres="non">NON</button></div>
    <div class="pgroup"><div class="cnt g">${g.yes.length}<span style="font-weight:600;font-size:12px">Présent</span></div><div class="names">${g.yes.join(", ")||"—"}</div></div>
    <div class="pgroup"><div class="cnt r">${g.no.length}<span style="font-weight:600;font-size:12px">Absent</span></div><div class="names">${g.no.join(", ")||"—"}</div></div>
    <div class="pgroup"><div class="cnt gy">${g.wait.length}<span style="font-weight:600;font-size:12px">Sans réponse</span></div><div class="names">${g.wait.join(", ")||"—"}</div></div>
-  </div><div class="manager" style="border:none;padding-top:0">Réponses non sauvegardées pour l'instant — à brancher sur Supabase une fois les matchs synchronisés.</div>`;
+  </div>`;
   if(ROLE==="manager") h+=`<div class="manager">Espace manager : modifier la présence d'un joueur, avant et après le match — à brancher.</div>`;
- } else if(m.playersOk){
-  h+=`<h3 class="sect">Homme du match</h3><div class="card">`;
-  if(m.voteClosed){
-   const top=Object.entries(m.votes).sort((a,b)=>b[1]-a[1]); const max=top[0][1];
-   const winners=top.filter(([_,v])=>v===max);
-   h+=winners.map(([n,v])=>`<div class="winner"><div class="av">${initials(n)}</div><div><b>${n}</b><br><i>${v} votes</i></div></div>`).join("<br>");
-  } else {
-   h+=(m.playersOk||[]).filter(n=>n!==ME).map(n=>`<div class="voteopt"><span>${n}</span><button data-vote="${n}">Voter</button></div>`).join("")
-    +`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Résultats masqués jusqu'à clôture (2h après le match).</div>`;
-  }
-  h+=`</div><h3 class="sect">Statistiques (${m.comp})</h3><div class="card" style="padding:8px"><table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
-  ${(m.playersOk||[]).map(n=>{const s=(m.stats||{})[n]||{b:0,pd:0,gb:0};return `<tr><td>${n}</td><td>${s.b}</td><td>${s.pd}</td><td>${s.gb?'✓':'—'}</td></tr>`;}).join("")}
-  </table>${ROLE==='manager'?`<div class="manager">Espace manager : saisie/édition des stats — contrôle total buts ≤ score de l'équipe.</div>`:''}</div>`;
+ } else if(!m.dbId){
+  h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base.</div>`;
  } else {
-  h+=`<div class="manager" style="border:none;padding-top:0">Vote homme du match et statistiques disponibles une fois ce match synchronisé avec la base (prochaine étape).</div>`;
+  if(ROLE==="manager"){
+   h+=`<h3 class="sect">Qui a réellement joué ?</h3><div class="card">`;
+   h+=effectif.map(j=>{
+    const joue = (m.presenceAll||[]).some(r=>r.joueur_id===j.id && r.a_reellement_joue);
+    return `<div class="voteopt" data-toggle-joue="${j.id}" style="cursor:pointer"><span>${j.nom}</span><span class="badge ${joue?'g':'grey'}">${joue?'✓ A joué':'Non'}</span></div>`;
+   }).join("");
+   h+=`</div>`;
+  }
+  h+=`<h3 class="sect">Homme du match</h3><div class="card">`;
+  if(!m.playersOk || m.playersOk.length===0){
+   h+=`<div class="small" style="color:var(--muted)">En attente de la validation du manager (qui a réellement joué).</div>`;
+  } else {
+   const jeSuisCandidat = m.playersOk.some(j=>j.id===MY_ID);
+   if(jeSuisCandidat){
+    h+=m.playersOk.filter(j=>j.id!==MY_ID).map(j=>`<div class="voteopt"><span>${j.nom}</span><button data-vote="${j.id}" class="${m.myVote===j.id?'yesOn':''}" style="${m.myVote===j.id?'background:var(--green);color:#fff':''}">${m.myVote===j.id?'Voté ✓':'Voter'}</button></div>`).join("");
+   } else {
+    h+=`<div class="small" style="color:var(--muted)">Seuls les joueurs ayant participé peuvent voter.</div>`;
+   }
+   if(m.voteVisible){
+    const top=Object.entries(m.voteCounts||{}).sort((a,b)=>b[1]-a[1]);
+    if(top.length){
+     const max=top[0][1]; const winners=top.filter(([_,v])=>v===max);
+     h+=`<div style="margin-top:10px">`+winners.map(([id,v])=>{const j=effectif.find(e=>e.id===id); return `<div class="winner"><div class="av">${initials(j?j.nom:'?')}</div><div><b>${j?j.nom:'?'}</b><br><i>${v} vote${v>1?'s':''}</i></div></div>`;}).join("<br>")+`</div>`;
+    } else { h+=`<div class="small" style="margin-top:8px;color:var(--muted)">Aucun vote pour l'instant.</div>`; }
+   } else {
+    h+=`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Résultats visibles 48h après le match.</div>`;
+   }
+  }
+  h+=`</div><h3 class="sect">Statistiques (${m.comp})</h3><div class="card" style="padding:8px">
+  ${m.playersOk && m.playersOk.length ? `<table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+  ${m.playersOk.map(j=>`<tr><td>${j.nom}</td><td>0</td><td>0</td><td>—</td></tr>`).join("")}
+  </table>`:'<div class="small" style="color:var(--muted)">Pas encore de joueurs validés.</div>'}
+  ${ROLE==='manager'?`<div class="manager">Saisie des stats par le manager : prochaine étape.</div>`:''}</div>`;
  }
  return h;
 }
@@ -311,10 +373,21 @@ function render(){
  }
 }
 function bind(){
- document.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>{currentMatch=matches.find(m=>m.id==el.dataset.open); render();});
+ document.querySelectorAll("[data-open]").forEach(el=>el.onclick=async ()=>{
+  currentMatch=matches.find(m=>m.id==el.dataset.open); render();
+  if(currentMatch && currentMatch.dbId){
+   if(currentMatch.status==="upcoming" && !currentMatch.presenceReal){ await loadPresences(currentMatch); render(); }
+   if(currentMatch.status==="past" && !currentMatch.playersOk){ await loadPastMatchData(currentMatch); render(); }
+  }
+ });
  const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>{currentMatch=null; render();};
- document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>{currentMatch.presence[ME]=b.dataset.pres; render();});
- document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>{alert("Vote enregistré pour "+b.dataset.vote+" (masqué jusqu'à clôture)");});
+ document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
+ document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
+ document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onclick=()=>{
+  const id=el.dataset.toggleJoue;
+  const dejaJoue=(currentMatch.presenceAll||[]).some(r=>r.joueur_id===id && r.a_reellement_joue);
+  setJoueReel(currentMatch, id, !dejaJoue);
+ });
  const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openSheet(["Ouvrir dans Google Maps","Ouvrir dans Waze","Ouvrir dans Apple Plans"]);
 }
 function openSheet(opts){
