@@ -161,6 +161,8 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let ME="", MY_EMAIL="", ROLE="joueur", currentTab="cal", currentMatch=null, theme="light";
 const initials=n=>n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+const cleanVenue=v=>(v||"").replace(/\s*\(ouvre l'itinéraire[^)]*\)\s*/gi,"").trim()||"Lieu à confirmer";
+let effectif=[];
 
 async function loadJoueurEtDemarre(session){
  const email = session.user.email;
@@ -172,6 +174,9 @@ async function loadJoueurEtDemarre(session){
   return;
  }
  ME = data.nom; ROLE = data.role; MY_EMAIL = email;
+ const {data: tousJoueurs} = await sb.from("joueurs").select("nom").eq("actif", true);
+ effectif = (tousJoueurs||[]).map(j=>j.nom);
+ if(!effectif.includes(ME)) effectif.push(ME);
  await loadDonneesFLA();
  document.getElementById("loginScreen").style.display="none";
  document.getElementById("app").style.display="block";
@@ -191,7 +196,6 @@ sb.auth.onAuthStateChange((event, session)=>{ if(session) loadJoueurEtDemarre(se
 sb.auth.getSession().then(({data})=>{ if(data.session) loadJoueurEtDemarre(data.session); });
 
 let matches=[], ranking=[];
-const others=["Alexandre Khedir","Raphael Bonnet","Alexandre Mongour","Jimmy Pereira","Romain Peyret","Badr Benslimane","Hugo Trony","Melville le Tellier","Stan Jaillard","Théo Demax"];
 const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
 const fmtTime=d=>d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 const fmtDay=d=>d.getDate().toString().padStart(2,"0");
@@ -204,7 +208,7 @@ async function loadDonneesFLA(){
   const rawMatches = await mRes.json(), cl = await clRes.json();
   matches = rawMatches.filter(m=>m.date).map((m,idx)=>({
    id:`${idx}-${m.date}`, comp:m.competition, dt:new Date(m.date), home:m.domicile, away:m.exterieur,
-   venue:m.venue||"Lieu à confirmer", status:m.statut, score:m.score, presence:{}
+   venue:cleanVenue(m.venue), status:m.statut, score:m.score, presence:{}
   })).sort((a,b)=>a.dt-b.dt);
   ranking = cl.map(r=>({p:r.equipe, pt:r.points, j:r.joues, g:r.gagnes, n:r.nuls, l:r.perdus, me:r.equipe==="PARIS ASF"}))
    .sort((a,b)=>b.pt-a.pt);
@@ -221,14 +225,14 @@ const notifs=[
 
 function groupCounts(m){
  const g={yes:[],no:[],wait:[]};
- others.concat([ME]).forEach(n=>{const p=(m.presence||{})[n]; g[p==="yes"?"yes":p==="no"?"no":"wait"].push(n);});
+ effectif.forEach(n=>{const p=(m.presence||{})[n]; g[p==="yes"?"yes":p==="no"?"no":"wait"].push(n);});
  return g;
 }
 
-function matchRow(m){
+function matchRow(m, isNext){
  const st = m.status==="past"?"past":(m.presence[ME]==="yes"?"yes":m.presence[ME]==="no"?"no":"wait");
  const win = m.score && (m.home==="PARIS ASF"? m.score[0]>m.score[1] : m.score[1]>m.score[0]);
- return `<div class="mrow" data-open="${m.id}">
+ return `<div class="mrow" data-open="${m.id}"${isNext?' id="nextMatch"':''}>
   <div class="dblock d-${st}"><b>${fmtDay(m.dt)}</b><span>${fmtMonAbbr(m.dt)}</span></div>
   <div class="minfo">
    ${m.comp==="Coupe"?`<div class="comp">🏆 Coupe</div>`:''}
@@ -238,10 +242,8 @@ function matchRow(m){
   </div></div>`;
 }
 function viewCal(){
- const up=matches.filter(m=>m.status==="upcoming"), past=matches.filter(m=>m.status==="past").slice().reverse();
  return `<div class="proto">Calendrier et classement réels (scrapés depuis la FLA) — présence, vote et stats arrivent à l'étape suivante</div>
- <h2 class="title">CALENDRIER</h2><div class="sheet-card">${up.length?up.map(matchRow).join(""):'<div class="mrow">Aucun match à venir pour le moment.</div>'}</div>
- <h3 class="sect">Terminés</h3><div class="sheet-card">${past.map(matchRow).join("")}</div>`;
+ <h2 class="title">CALENDRIER</h2><div class="sheet-card">${matches.length?matches.map((m,i)=>matchRow(m, m.status==="upcoming" && !matches.slice(0,i).some(x=>x.status==="upcoming"))).join(""):'<div class="mrow">Aucun match trouvé.</div>'}</div>`;
 }
 function viewRank(){
  return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 8px"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
@@ -303,6 +305,10 @@ function render(){
  const badge = document.getElementById("bellBadge");
  badge.style.display = unread?"flex":"none"; badge.textContent = unread;
  bind();
+ if(currentTab==="cal" && !currentMatch){
+  const nm = document.getElementById("nextMatch");
+  if(nm) nm.scrollIntoView({block:"center"});
+ }
 }
 function bind(){
  document.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>{currentMatch=matches.find(m=>m.id==el.dataset.open); render();});
