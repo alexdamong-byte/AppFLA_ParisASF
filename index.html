@@ -174,9 +174,9 @@ async function loadJoueurEtDemarre(session){
   return;
  }
  ME = data.nom; MY_ID = data.id; ROLE = data.role; MY_EMAIL = email;
- const {data: tousJoueurs} = await sb.from("joueurs").select("id,nom").eq("actif", true);
+ const {data: tousJoueurs} = await sb.from("joueurs").select("id,nom,role").eq("actif", true);
  effectif = tousJoueurs||[];
- if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME});
+ if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
  await loadDonneesFLA();
  document.getElementById("loginScreen").style.display="none";
  document.getElementById("app").style.display="block";
@@ -247,6 +247,31 @@ async function setPresence(m, statut){
   {onConflict:"match_id,joueur_id"}
  );
  await loadPresences(m); render();
+}
+
+async function refreshEffectif(){
+ const {data} = await sb.from("joueurs").select("id,nom,role").eq("actif", true);
+ effectif = data||[];
+ if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
+}
+async function ajouterJoueur(nom, email, role){
+ if(!nom||!email){ alert("Nom et email requis."); return; }
+ const {error} = await sb.from("joueurs").insert({nom, email:email.trim().toLowerCase(), role});
+ if(error){ alert("Erreur : "+error.message); return; }
+ await refreshEffectif(); render();
+}
+async function retirerJoueur(id, nom){
+ if(id===MY_ID){ alert("Tu ne peux pas te retirer toi-même."); return; }
+ if(!confirm(`Retirer ${nom} de l'effectif ?`)) return;
+ const {error} = await sb.from("joueurs").update({actif:false}).eq("id", id);
+ if(error){ alert("Erreur : "+error.message); return; }
+ await refreshEffectif(); render();
+}
+async function basculerRole(id, roleActuel){
+ const nouveau = roleActuel==="manager" ? "joueur" : "manager";
+ const {error} = await sb.from("joueurs").update({role:nouveau}).eq("id", id);
+ if(error){ alert("Erreur : "+error.message); return; }
+ await refreshEffectif(); render();
 }
 
 async function loadPastMatchData(m){
@@ -322,8 +347,7 @@ function matchRow(m, isNext){
   </div></div>`;
 }
 function viewCal(){
- return `<div class="proto">Calendrier et classement réels (scrapés depuis la FLA) — présence, vote et stats arrivent à l'étape suivante</div>
- <h2 class="title">CALENDRIER</h2><div class="sheet-card">${matches.length?matches.map((m,i)=>matchRow(m, m.status==="upcoming" && !matches.slice(0,i).some(x=>x.status==="upcoming"))).join(""):'<div class="mrow">Aucun match trouvé.</div>'}</div>`;
+ return `<h2 class="title">CALENDRIER</h2><div class="sheet-card">${matches.length?matches.map((m,i)=>matchRow(m, m.status==="upcoming" && !matches.slice(0,i).some(x=>x.status==="upcoming"))).join(""):'<div class="mrow">Aucun match trouvé.</div>'}</div>`;
 }
 function viewRank(){
  return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 8px"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
@@ -336,7 +360,21 @@ function viewClub(){
  return `<h2 class="title">CLUB</h2><div class="sheet-card" style="padding:6px 8px"><table><tr><th>Joueurs</th><th>J</th><th>B</th><th>PD</th><th>GB</th><th>HM</th></tr>
  ${club.map(p=>`<tr><td>${p.n}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
  <tr class="tot"><td>PARIS ASF</td><td>${tot.j}</td><td>${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
- </table></div>${ROLE==='manager'?'<div class="manager">Espace manager : ajouter / retirer un joueur ou un manager — à brancher.</div>':''}`;
+ </table></div>
+ ${ROLE==='manager'?`<h3 class="sect">Gestion de l'effectif</h3><div class="card">
+  ${effectif.map(j=>`<div class="voteopt">
+   <span>${j.nom}</span>
+   <span style="display:flex;gap:8px;align-items:center">
+    <span class="badge ${j.role==='manager'?'g':'grey'}" data-toggle-role="${j.id}" data-role-actuel="${j.role}" style="cursor:pointer">${j.role==='manager'?'Manager':'Joueur'}</span>
+    ${j.id!==MY_ID?`<span class="del" data-remove-joueur="${j.id}" data-nom-joueur="${j.nom}">🗑</span>`:''}
+   </span></div>`).join("")}
+  <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
+   <input type="text" id="newNom" placeholder="Nom complet" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--chipbg);color:var(--text);margin-bottom:6px">
+   <input type="email" id="newEmail" placeholder="Email" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--chipbg);color:var(--text);margin-bottom:6px">
+   <div class="oui-non" style="margin-bottom:8px"><button data-new-role="joueur" id="rJoueur" class="yesOn">Joueur</button><button data-new-role="manager" id="rManager">Manager</button></div>
+   <button class="votebtn" data-add-joueur="1">Ajouter à l'effectif</button>
+  </div>
+ </div>`:''}`;
 }
 function viewMatch(m){
  let h=`<div class="backbar"><button class="bk" data-back="1">←</button></div>
@@ -460,6 +498,16 @@ function bind(){
   const id=el.dataset.statGardien; currentMatch.statsDraft[id].gardien=!currentMatch.statsDraft[id].gardien; render();
  });
  const ss=document.querySelector("[data-save-stats]"); if(ss) ss.onclick=()=>enregistrerStats(currentMatch);
+ document.querySelectorAll("[data-toggle-role]").forEach(el=>el.onclick=()=>basculerRole(el.dataset.toggleRole, el.dataset.roleActuel));
+ document.querySelectorAll("[data-remove-joueur]").forEach(el=>el.onclick=()=>retirerJoueur(el.dataset.removeJoueur, el.dataset.nomJoueur));
+ const rJ=document.getElementById("rJoueur"), rM=document.getElementById("rManager");
+ if(rJ&&rM){ rJ.onclick=()=>{rJ.classList.add("yesOn"); rM.classList.remove("yesOn");}; rM.onclick=()=>{rM.classList.add("yesOn"); rJ.classList.remove("yesOn");}; }
+ const aj=document.querySelector("[data-add-joueur]"); if(aj) aj.onclick=()=>{
+  const nom=document.getElementById("newNom").value.trim();
+  const email=document.getElementById("newEmail").value.trim();
+  const role=document.getElementById("rManager").classList.contains("yesOn")?"manager":"joueur";
+  ajouterJoueur(nom, email, role);
+ };
  const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openSheet(["Ouvrir dans Google Maps","Ouvrir dans Waze","Ouvrir dans Apple Plans"]);
 }
 function openSheet(opts){
