@@ -208,11 +208,12 @@ async function loadDonneesFLA(){
  try{
   const [mRes, clRes] = await Promise.all([fetch("matches.json"), fetch("classement.json")]);
   const rawMatches = await mRes.json(), cl = await clRes.json();
-  const {data: dbMatches} = await sb.from("matchs").select("id,source_id,feuille_validee");
+  const {data: dbMatches} = await sb.from("matchs").select("id,source_id,feuille_validee,stats_remplies");
   const dbBySource = {}; (dbMatches||[]).forEach(r=>dbBySource[r.source_id]=r);
   matches = rawMatches.filter(m=>m.date).map((m,idx)=>{
    const row = dbBySource[sourceId(m)];
    return {id:`${idx}-${m.date}`, dbId: row?row.id:null, feuilleValidee: row?!!row.feuille_validee:false,
+    statsRemplies: row?!!row.stats_remplies:false,
     comp:m.competition, dt:new Date(m.date), home:m.domicile, away:m.exterieur,
     venue:cleanVenue(m.venue), status:m.statut, score:m.score, presence:{}};
   }).sort((a,b)=>a.dt-b.dt);
@@ -261,12 +262,40 @@ async function loadPastMatchData(m){
   });
  }
  m.playersOk = m.feuilleValidee ? effectif.filter(j=>(pres||[]).some(r=>r.joueur_id===j.id && r.a_reellement_joue)) : [];
+
+ const {data:statsRows} = await sb.from("stats_joueurs").select("joueur_id,buts,passes_decisives,gardien").eq("match_id", m.dbId);
+ if(!m.statsDraft){
+  m.statsDraft = {};
+  m.playersOk.forEach(j=>{
+   const row = (statsRows||[]).find(r=>r.joueur_id===j.id);
+   m.statsDraft[j.id] = {buts:row?row.buts:0, pd:row?row.passes_decisives:0, gardien:row?row.gardien:false};
+  });
+ }
+ m.scoreOfficiel = m.home==="PARIS ASF" ? (m.score?m.score[0]:null) : (m.score?m.score[1]:null);
+
+ const voteActif = m.feuilleValidee && m.statsRemplies;
  const {data:votes} = await sb.from("votes_homme_du_match").select("votant_id,candidat_id").eq("match_id", m.dbId);
  m.myVote = (votes||[]).find(v=>v.votant_id===MY_ID)?.candidat_id || null;
  m.voteCounts = {}; (votes||[]).forEach(v=>{m.voteCounts[v.candidat_id]=(m.voteCounts[v.candidat_id]||0)+1;});
  const votantIds = new Set((votes||[]).map(v=>v.votant_id));
- const tousOntVote = m.playersOk.length>0 && m.playersOk.every(j=>votantIds.has(j.id));
- m.voteVisible = tousOntVote || (Date.now()-m.dt.getTime()) >= 48*3600*1000;
+ const tousOntVote = voteActif && m.playersOk.length>0 && m.playersOk.every(j=>votantIds.has(j.id));
+ m.voteActif = voteActif;
+ m.voteVisible = tousOntVote || (voteActif && (Date.now()-m.dt.getTime()) >= 48*3600*1000);
+}
+async function enregistrerStats(m){
+ const total = Object.values(m.statsDraft).reduce((a,s)=>a+(parseInt(s.buts)||0),0);
+ if(m.scoreOfficiel!==null && total>m.scoreOfficiel){
+  alert(`Le total des buts saisis (${total}) dépasse le score officiel de l'équipe (${m.scoreOfficiel}).`);
+  return;
+ }
+ const writes = Object.entries(m.statsDraft).map(([joueur_id, s])=>({
+  match_id:m.dbId, joueur_id, buts:parseInt(s.buts)||0, passes_decisives:parseInt(s.pd)||0, gardien:!!s.gardien
+ }));
+ const {error} = await sb.from("stats_joueurs").upsert(writes, {onConflict:"match_id,joueur_id"});
+ if(error){ alert("Erreur à l'enregistrement : "+error.message); return; }
+ await sb.from("matchs").update({stats_remplies:true}).eq("id", m.dbId);
+ m.statsRemplies = true;
+ await loadPastMatchData(m); render();
 }
 async function validerFeuille(m){
  const writes = Object.entries(m.validationDraft).map(([joueur_id, a_reellement_joue])=>({match_id:m.dbId, joueur_id, a_reellement_joue}));
@@ -347,8 +376,12 @@ function viewMatch(m){
    h+=`</div>`;
   }
   h+=`<h3 class="sect">Homme du match</h3><div class="card">`;
-  if(!m.playersOk || m.playersOk.length===0){
-   h+=`<div class="small" style="color:var(--muted)">${m.feuilleValidee?"Aucun joueur retenu sur ce match.":"En attente de la feuille de match par un manager."}</div>`;
+  if(!m.feuilleValidee){
+   h+=`<div class="small" style="color:var(--muted)">En attente de la feuille de match par un manager.</div>`;
+  } else if(!m.statsRemplies){
+   h+=`<div class="small" style="color:var(--muted)">En attente de la saisie des stats par un manager.</div>`;
+  } else if(!m.playersOk || m.playersOk.length===0){
+   h+=`<div class="small" style="color:var(--muted)">Aucun joueur retenu sur ce match.</div>`;
   } else {
    const jeSuisCandidat = m.playersOk.some(j=>j.id===MY_ID);
    if(jeSuisCandidat){
@@ -366,11 +399,26 @@ function viewMatch(m){
     h+=`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Résultats visibles 48h après le match.</div>`;
    }
   }
-  h+=`</div><h3 class="sect">Statistiques (${m.comp})</h3><div class="card" style="padding:8px">
-  ${m.playersOk && m.playersOk.length ? `<table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
-  ${m.playersOk.map(j=>`<tr><td>${j.nom}</td><td>0</td><td>0</td><td>—</td></tr>`).join("")}
-  </table>`:'<div class="small" style="color:var(--muted)">Pas encore de joueurs validés.</div>'}
-  ${ROLE==='manager'?`<div class="manager">Saisie des stats par le manager : prochaine étape.</div>`:''}</div>`;
+  h+=`</div><h3 class="sect">Statistiques (${m.comp})</h3><div class="card" style="padding:8px">`;
+  if(!m.playersOk || m.playersOk.length===0){
+   h+=`<div class="small" style="color:var(--muted)">Pas encore de joueurs validés.</div>`;
+  } else if(ROLE==="manager"){
+   h+=`${m.scoreOfficiel!==null?`<div class="small" style="margin-bottom:8px">Score officiel de l'équipe : <b>${m.scoreOfficiel}</b> — le total des buts saisis ne doit pas le dépasser.</div>`:''}
+   <table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+   ${m.playersOk.map(j=>{if(!m.statsDraft[j.id]) m.statsDraft[j.id]={buts:0,pd:0,gardien:false}; const s=m.statsDraft[j.id];
+    return `<tr><td>${j.nom}</td>
+     <td><input type="number" min="0" value="${s.buts}" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
+     <td><input type="number" min="0" value="${s.pd}" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
+     <td><span data-stat-gardien="${j.id}" style="cursor:pointer">${s.gardien?'✓':'—'}</span></td></tr>`;}).join("")}
+   </table>
+   <button class="votebtn" style="margin-top:10px" data-save-stats="1">Enregistrer les stats</button>`;
+  } else {
+   h+=`<table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+   ${m.playersOk.map(j=>{const s=m.statsDraft[j.id]||{buts:0,pd:0,gardien:false};
+    return `<tr><td>${j.nom}</td><td>${s.buts}</td><td>${s.pd}</td><td>${s.gardien?'✓':'—'}</td></tr>`;}).join("")}
+   </table>`;
+  }
+  h+=`</div>`;
  }
  return h;
 }
@@ -406,6 +454,12 @@ function bind(){
   render();
  });
  const vf=document.querySelector("[data-valider-feuille]"); if(vf) vf.onclick=()=>validerFeuille(currentMatch);
+ document.querySelectorAll("[data-stat-buts]").forEach(el=>el.oninput=()=>{currentMatch.statsDraft[el.dataset.statButs].buts=el.value;});
+ document.querySelectorAll("[data-stat-pd]").forEach(el=>el.oninput=()=>{currentMatch.statsDraft[el.dataset.statPd].pd=el.value;});
+ document.querySelectorAll("[data-stat-gardien]").forEach(el=>el.onclick=()=>{
+  const id=el.dataset.statGardien; currentMatch.statsDraft[id].gardien=!currentMatch.statsDraft[id].gardien; render();
+ });
+ const ss=document.querySelector("[data-save-stats]"); if(ss) ss.onclick=()=>enregistrerStats(currentMatch);
  const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openSheet(["Ouvrir dans Google Maps","Ouvrir dans Waze","Ouvrir dans Apple Plans"]);
 }
 function openSheet(opts){
