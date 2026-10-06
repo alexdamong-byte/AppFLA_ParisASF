@@ -208,12 +208,14 @@ async function loadDonneesFLA(){
  try{
   const [mRes, clRes] = await Promise.all([fetch("matches.json"), fetch("classement.json")]);
   const rawMatches = await mRes.json(), cl = await clRes.json();
-  const {data: dbMatches} = await sb.from("matchs").select("id,source_id");
-  const dbBySource = {}; (dbMatches||[]).forEach(r=>dbBySource[r.source_id]=r.id);
-  matches = rawMatches.filter(m=>m.date).map((m,idx)=>({
-   id:`${idx}-${m.date}`, dbId: dbBySource[sourceId(m)]||null, comp:m.competition, dt:new Date(m.date),
-   home:m.domicile, away:m.exterieur, venue:cleanVenue(m.venue), status:m.statut, score:m.score, presence:{}
-  })).sort((a,b)=>a.dt-b.dt);
+  const {data: dbMatches} = await sb.from("matchs").select("id,source_id,feuille_validee");
+  const dbBySource = {}; (dbMatches||[]).forEach(r=>dbBySource[r.source_id]=r);
+  matches = rawMatches.filter(m=>m.date).map((m,idx)=>{
+   const row = dbBySource[sourceId(m)];
+   return {id:`${idx}-${m.date}`, dbId: row?row.id:null, feuilleValidee: row?!!row.feuille_validee:false,
+    comp:m.competition, dt:new Date(m.date), home:m.domicile, away:m.exterieur,
+    venue:cleanVenue(m.venue), status:m.statut, score:m.score, presence:{}};
+  }).sort((a,b)=>a.dt-b.dt);
   ranking = cl.map(r=>({p:r.equipe, pt:r.points, j:r.joues, g:r.gagnes, n:r.nuls, l:r.perdus, me:r.equipe==="PARIS ASF"}))
    .sort((a,b)=>b.pt-a.pt);
  }catch(e){ console.error("Chargement FLA impossible", e); }
@@ -248,16 +250,29 @@ async function setPresence(m, statut){
 
 async function loadPastMatchData(m){
  if(!m.dbId) return;
- const {data:pres} = await sb.from("presences").select("joueur_id,a_reellement_joue").eq("match_id", m.dbId);
+ const {data:pres} = await sb.from("presences").select("joueur_id,statut,a_reellement_joue").eq("match_id", m.dbId);
  m.presenceAll = pres||[];
- m.playersOk = effectif.filter(j=>(pres||[]).some(r=>r.joueur_id===j.id && r.a_reellement_joue));
+ // Brouillon d'édition manager : si pas encore validé, pré-coché selon la présence déclarée (OUI)
+ if(!m.validationDraft){
+  m.validationDraft = {};
+  effectif.forEach(j=>{
+   const row = (pres||[]).find(r=>r.joueur_id===j.id);
+   m.validationDraft[j.id] = m.feuilleValidee ? !!(row&&row.a_reellement_joue) : (row ? row.statut==="oui" : false);
+  });
+ }
+ m.playersOk = m.feuilleValidee ? effectif.filter(j=>(pres||[]).some(r=>r.joueur_id===j.id && r.a_reellement_joue)) : [];
  const {data:votes} = await sb.from("votes_homme_du_match").select("votant_id,candidat_id").eq("match_id", m.dbId);
  m.myVote = (votes||[]).find(v=>v.votant_id===MY_ID)?.candidat_id || null;
  m.voteCounts = {}; (votes||[]).forEach(v=>{m.voteCounts[v.candidat_id]=(m.voteCounts[v.candidat_id]||0)+1;});
- m.voteVisible = (Date.now()-m.dt.getTime()) >= 48*3600*1000;
+ const votantIds = new Set((votes||[]).map(v=>v.votant_id));
+ const tousOntVote = m.playersOk.length>0 && m.playersOk.every(j=>votantIds.has(j.id));
+ m.voteVisible = tousOntVote || (Date.now()-m.dt.getTime()) >= 48*3600*1000;
 }
-async function setJoueReel(m, joueurId, joue){
- await sb.from("presences").upsert({match_id:m.dbId, joueur_id:joueurId, a_reellement_joue:joue}, {onConflict:"match_id,joueur_id"});
+async function validerFeuille(m){
+ const writes = Object.entries(m.validationDraft).map(([joueur_id, a_reellement_joue])=>({match_id:m.dbId, joueur_id, a_reellement_joue}));
+ await sb.from("presences").upsert(writes, {onConflict:"match_id,joueur_id"});
+ await sb.from("matchs").update({feuille_validee:true}).eq("id", m.dbId);
+ m.feuilleValidee = true;
  await loadPastMatchData(m); render();
 }
 async function voter(m, candidatId){
@@ -323,15 +338,17 @@ function viewMatch(m){
  } else {
   if(ROLE==="manager"){
    h+=`<h3 class="sect">Qui a réellement joué ?</h3><div class="card">`;
+   if(!m.feuilleValidee) h+=`<div class="small" style="color:var(--muted);margin-bottom:8px">Pré-coché selon les présences déclarées — ajuste si besoin puis valide.</div>`;
    h+=effectif.map(j=>{
-    const joue = (m.presenceAll||[]).some(r=>r.joueur_id===j.id && r.a_reellement_joue);
+    const joue = (m.validationDraft||{})[j.id];
     return `<div class="voteopt" data-toggle-joue="${j.id}" style="cursor:pointer"><span>${j.nom}</span><span class="badge ${joue?'g':'grey'}">${joue?'✓ A joué':'Non'}</span></div>`;
    }).join("");
+   h+=`<button class="votebtn" style="margin-top:10px" data-valider-feuille="1">${m.feuilleValidee?'Mettre à jour la feuille':'Valider la feuille de match'}</button>`;
    h+=`</div>`;
   }
   h+=`<h3 class="sect">Homme du match</h3><div class="card">`;
   if(!m.playersOk || m.playersOk.length===0){
-   h+=`<div class="small" style="color:var(--muted)">En attente de la validation du manager (qui a réellement joué).</div>`;
+   h+=`<div class="small" style="color:var(--muted)">${m.feuilleValidee?"Aucun joueur retenu sur ce match.":"En attente de la feuille de match par un manager."}</div>`;
   } else {
    const jeSuisCandidat = m.playersOk.some(j=>j.id===MY_ID);
    if(jeSuisCandidat){
@@ -344,7 +361,7 @@ function viewMatch(m){
     if(top.length){
      const max=top[0][1]; const winners=top.filter(([_,v])=>v===max);
      h+=`<div style="margin-top:10px">`+winners.map(([id,v])=>{const j=effectif.find(e=>e.id===id); return `<div class="winner"><div class="av">${initials(j?j.nom:'?')}</div><div><b>${j?j.nom:'?'}</b><br><i>${v} vote${v>1?'s':''}</i></div></div>`;}).join("<br>")+`</div>`;
-    } else { h+=`<div class="small" style="margin-top:8px;color:var(--muted)">Aucun vote pour l'instant.</div>`; }
+    } else { h+=`<div class="small" style="margin-top:8px;color:var(--muted)">Pas de vote → pas d'homme du match pour cette rencontre.</div>`; }
    } else {
     h+=`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Résultats visibles 48h après le match.</div>`;
    }
@@ -385,9 +402,10 @@ function bind(){
  document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
  document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onclick=()=>{
   const id=el.dataset.toggleJoue;
-  const dejaJoue=(currentMatch.presenceAll||[]).some(r=>r.joueur_id===id && r.a_reellement_joue);
-  setJoueReel(currentMatch, id, !dejaJoue);
+  currentMatch.validationDraft[id] = !currentMatch.validationDraft[id];
+  render();
  });
+ const vf=document.querySelector("[data-valider-feuille]"); if(vf) vf.onclick=()=>validerFeuille(currentMatch);
  const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openSheet(["Ouvrir dans Google Maps","Ouvrir dans Waze","Ouvrir dans Apple Plans"]);
 }
 function openSheet(opts){
