@@ -29,6 +29,12 @@ jobs:
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
         run: python scrape_fla.py
 
+      - name: Générer les notifications (relances, absences auto, vote dispo)
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+        run: python notifications_cron.py
+
       - name: Sauvegarder et publier les JSON
         run: |
           git config --global user.name "Bot-FLA"
