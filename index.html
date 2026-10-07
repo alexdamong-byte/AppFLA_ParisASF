@@ -274,6 +274,14 @@ async function basculerRole(id, roleActuel){
  await refreshEffectif(); render();
 }
 
+async function setPresenceManager(m, joueurId, statut){
+ await sb.from("presences").upsert(
+  {match_id:m.dbId, joueur_id:joueurId, statut, updated_at:new Date().toISOString()},
+  {onConflict:"match_id,joueur_id"}
+ );
+ await loadPresences(m); render();
+}
+
 async function loadPastMatchData(m){
  if(!m.dbId) return;
  const {data:pres} = await sb.from("presences").select("joueur_id,statut,a_reellement_joue").eq("match_id", m.dbId);
@@ -399,7 +407,17 @@ function viewMatch(m){
    <div class="pgroup"><div class="cnt r">${g.no.length}<span style="font-weight:600;font-size:12px">Absent</span></div><div class="names">${g.no.join(", ")||"—"}</div></div>
    <div class="pgroup"><div class="cnt gy">${g.wait.length}<span style="font-weight:600;font-size:12px">Sans réponse</span></div><div class="names">${g.wait.join(", ")||"—"}</div></div>
   </div>`;
-  if(ROLE==="manager") h+=`<div class="manager">Espace manager : modifier la présence d'un joueur, avant et après le match — à brancher.</div>`;
+  if(ROLE==="manager"){
+   h+=`<h3 class="sect">Modifier la présence (manager)</h3><div class="card">`;
+   h+=effectif.filter(j=>j.id!==MY_ID).map(j=>{
+    const pj=(m.presenceReal||{})[j.id];
+    return `<div class="voteopt"><span>${j.nom}</span><span style="display:flex;gap:6px">
+     <span class="badge ${pj==='oui'?'g':'grey'}" data-mgr-pres="${j.id}" data-mgr-val="oui" style="cursor:pointer">OUI</span>
+     <span class="badge ${pj==='non'?'r':'grey'}" data-mgr-pres="${j.id}" data-mgr-val="non" style="cursor:pointer">NON</span>
+    </span></div>`;
+   }).join("");
+   h+=`</div>`;
+  }
  } else if(!m.dbId){
   h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base.</div>`;
  } else {
@@ -485,6 +503,7 @@ function bind(){
  });
  const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>{currentMatch=null; render();};
  document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
+ document.querySelectorAll("[data-mgr-pres]").forEach(b=>b.onclick=()=>setPresenceManager(currentMatch, b.dataset.mgrPres, b.dataset.mgrVal));
  document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
  document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onclick=()=>{
   const id=el.dataset.toggleJoue;
