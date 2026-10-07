@@ -178,6 +178,7 @@ async function loadJoueurEtDemarre(session){
  effectif = tousJoueurs||[];
  if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
  await loadDonneesFLA();
+ await loadNotifications();
  document.getElementById("loginScreen").style.display="none";
  document.getElementById("app").style.display="block";
  render();
@@ -224,11 +225,24 @@ async function loadDonneesFLA(){
 const club=[{n:"Adam Belghiti",j:17,b:1,pd:0,gb:1,hm:3},{n:"Alexandre Khedir",j:22,b:2,pd:0,gb:1,hm:7},
  {n:"Raphael Bonnet",j:26,b:2,pd:4,gb:1,hm:9},{n:"Stan Jaillard",j:24,b:0,pd:3,gb:1,hm:13},
  {n:"Jimmy Pereira",j:19,b:4,pd:0,gb:0,hm:9},{n:"Badr Benslimane",j:16,b:0,pd:3,gb:1,hm:7}];
-const notifs=[
- {t:"Sans réponse de ta part aujourd'hui, tu seras mis absent pour le match du mercredi 23 septembre à 19:30 !",w:"Aujourd'hui",unread:true},
- {t:"On attend toujours ta réponse pour le match du mercredi 23 septembre à 19:30.",w:"Il y a 1 jour"},
- {t:"Dispo pour le match du mercredi 23 septembre à 19:30 ?",w:"Il y a 7 jours"},
-];
+let notifs=[];
+function relTime(iso){
+ const diff = Date.now()-new Date(iso).getTime();
+ const h = Math.floor(diff/3600000);
+ if(h<1) return "À l'instant";
+ if(h<24) return `Il y a ${h}h`;
+ const j = Math.floor(h/24);
+ return j===1?"Hier":`Il y a ${j} jours`;
+}
+async function loadNotifications(){
+ const {data} = await sb.from("notifications").select("id,message,lu,created_at").eq("joueur_id", MY_ID).order("created_at",{ascending:false}).limit(30);
+ notifs = data||[];
+}
+async function supprimerNotif(id){
+ await sb.from("notifications").delete().eq("id", id);
+ notifs = notifs.filter(n=>n.id!==id);
+ openNotif();
+}
 
 function groupCounts(m){
  const g={yes:[],no:[],wait:[]};
@@ -484,7 +498,7 @@ function render(){
   : currentTab==="cal" ? viewCal() : currentTab==="rank" ? viewRank() : viewClub();
  [...document.querySelectorAll("nav button")].forEach(b=>b.classList.toggle("active", !currentMatch && b.dataset.tab===currentTab));
  document.getElementById("avatarBtn").textContent = initials(ME);
- const unread = notifs.filter(n=>n.unread).length;
+ const unread = notifs.filter(n=>!n.lu).length;
  const badge = document.getElementById("bellBadge");
  badge.style.display = unread?"flex":"none"; badge.textContent = unread;
  bind();
@@ -538,9 +552,17 @@ function openSheet(opts){
 }
 function openNotif(){
  document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
- ${notifs.map(n=>`<div class="nitem ${n.unread?'unread':''}"><div>${n.t}<div class="t">${n.w}</div></div><span class="del">🗑</span></div>`).join("")}`;
+ ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"><div>${n.message}<div class="t">${relTime(n.created_at)}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
+  :'<div class="nitem">Aucune notification pour l\'instant.</div>'}`;
  document.getElementById("notifOv").classList.add("open");
  document.getElementById("ncl").onclick=()=>document.getElementById("notifOv").classList.remove("open");
+ document.querySelectorAll("[data-del-notif]").forEach(el=>el.onclick=()=>supprimerNotif(el.dataset.delNotif));
+ const idsNonLues = notifs.filter(n=>!n.lu).map(n=>n.id);
+ if(idsNonLues.length){
+  sb.from("notifications").update({lu:true}).in("id", idsNonLues).then(()=>{
+   notifs.forEach(n=>n.lu=true); render();
+  });
+ }
 }
 function openProfil(){
  document.getElementById("profOv").innerHTML=`<div class="profov">
