@@ -47,7 +47,8 @@ def gerer_presence_a_venir():
     if not URL or not KEY:
         print("⚠️  Secrets Supabase absents — notifications ignorées."); return
     now = datetime.now(timezone.utc)
-    matchs = get("matchs", f"?statut=eq.a_venir&date_heure=gte.{now.isoformat()}&date_heure=lte.{(now+timedelta(days=20)).isoformat()}&select=id,date_heure")
+    iso_z = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")  # pas de "+" : il serait lu comme un espace dans l'URL
+    matchs = get("matchs", f"?statut=eq.a_venir&date_heure=gte.{iso_z(now)}&date_heure=lte.{iso_z(now+timedelta(days=20))}&select=id,date_heure")
     joueurs = get("joueurs", "?actif=eq.true&select=id,nom")
     for m in matchs:
         date_match = datetime.fromisoformat(m["date_heure"].replace("Z", "+00:00"))
@@ -58,7 +59,7 @@ def gerer_presence_a_venir():
             if statut in ("oui", "non"):
                 continue  # a déjà répondu
             if jours_restants <= 4:
-                post("presences", {"match_id": m["id"], "joueur_id": j["id"], "statut": "non"}, prefer="resolution=merge-duplicates")
+                post("presences?on_conflict=match_id,joueur_id", {"match_id": m["id"], "joueur_id": j["id"], "statut": "non"}, prefer="resolution=merge-duplicates")
                 notifier(j["id"], m["id"], "absence_auto",
                          f"Sans réponse de ta part, tu as été mis automatiquement absent pour le match du {date_match.strftime('%d/%m à %Hh%M')}.")
             elif not deja_relance_recemment(j["id"], m["id"]):
