@@ -35,8 +35,11 @@
     "exterieur": "FC PELOTA B",
     "date": "2026-10-07T21:30:00",
     "venue": "Stade Municipal de Chatillon",
-    "score": null,
-    "statut": "upcoming"
+    "score": [
+      4,
+      2
+    ],
+    "statut": "past"
   },
   {
     "competition": "Championnat",
