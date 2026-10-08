@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '0 8 * * *' # Tous les jours à 8h
   workflow_dispatch: # Bouton manuel
+    inputs:
+      test_push:
+        description: "Envoyer une notification de test à tous les appareils abonnés"
+        type: boolean
+        default: false
 
 jobs:
   run-bot:
@@ -33,6 +38,9 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          PUSH_TEST: ${{ inputs.test_push }}
         run: python notifications_cron.py
 
       - name: Sauvegarder et publier les JSON
