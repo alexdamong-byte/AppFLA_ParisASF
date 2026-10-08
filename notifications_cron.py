@@ -5,7 +5,7 @@ Génère les notifications quotidiennes pour l'app Paris ASF :
 - notification "vote disponible" 2h après le match, une fois la feuille + les stats validées
 Lancé quotidiennement par GitHub Actions avec la clé service_role (contourne les RLS).
 """
-import os, requests
+import os, json, requests
 from datetime import datetime, timedelta, timezone
 
 URL = (os.environ.get("SUPABASE_URL") or "").strip().strip('"').rstrip("/")
@@ -29,12 +29,46 @@ def patch(path, payload):
     if r.status_code >= 300:
         print(f"⚠️  Erreur PATCH {path} : {r.status_code} {r.text[:300]}")
 
+def envoyer_push(joueur_id, message):
+    """Envoie un push à tous les appareils abonnés du joueur. Silencieux si non configuré."""
+    priv = (os.environ.get("VAPID_PRIVATE_KEY") or "").strip()
+    sujet = (os.environ.get("VAPID_SUBJECT") or "").strip()
+    if not priv:
+        return
+    if not sujet.lower().startswith("mailto:"):
+        print("⚠️  VAPID_SUBJECT absent ou invalide (doit être mailto:ton@email) — push ignoré.")
+        return
+    from pywebpush import webpush, WebPushException
+    subs = get("push_subscriptions", f"?joueur_id=eq.{joueur_id}&select=id,endpoint,p256dh,auth_key")
+    for s in subs:
+        try:
+            webpush(
+                subscription_info={"endpoint": s["endpoint"], "keys": {"p256dh": s["p256dh"], "auth": s["auth_key"]}},
+                data=json.dumps({"title": "Paris ASF", "body": message}),
+                vapid_private_key=priv, vapid_claims={"sub": sujet}, ttl=86400,
+            )
+        except WebPushException as e:
+            code = getattr(e.response, "status_code", None)
+            if code in (404, 410):  # abonnement expiré ou désinstallé : on le supprime
+                requests.delete(f"{URL}/rest/v1/push_subscriptions?id=eq.{s['id']}", headers=HEADERS, timeout=20)
+            else:
+                print(f"⚠️  Push échoué ({code}) : {str(e)[:200]}")
+        except Exception as e:
+            print(f"⚠️  Push échoué : {str(e)[:200]}")
+
 def notifier(joueur_id, match_id, type_, message):
     existe = get("notifications", f"?joueur_id=eq.{joueur_id}&match_id=eq.{match_id}&type=eq.{type_}&select=id&limit=1")
     if existe:
         return False
     post("notifications", {"joueur_id": joueur_id, "match_id": match_id, "type": type_, "message": message, "lu": False})
+    envoyer_push(joueur_id, message)
     return True
+
+def test_push():
+    ids = {s["joueur_id"] for s in get("push_subscriptions", "?select=joueur_id")}
+    print(f"Test push : {len(ids)} joueur(s) abonné(s)")
+    for jid in ids:
+        envoyer_push(jid, "Notification de test ✅ — tout fonctionne !")
 
 def deja_relance_recemment(joueur_id, match_id):
     rows = get("notifications", f"?joueur_id=eq.{joueur_id}&match_id=eq.{match_id}&type=eq.relance_presence&select=created_at&order=created_at.desc&limit=1")
@@ -79,6 +113,9 @@ def gerer_vote_disponible():
                      "Le vote pour l'homme du match est ouvert — à toi de voter !")
 
 if __name__ == "__main__":
-    gerer_presence_a_venir()
-    gerer_vote_disponible()
+    if (os.environ.get("PUSH_TEST") or "").lower() == "true":
+        test_push()
+    else:
+        gerer_presence_a_venir()
+        gerer_vote_disponible()
     print("✅ Notifications traitées")
