@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Paris ASF</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0a1119">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Paris ASF">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 .login{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;}
@@ -132,6 +139,10 @@ tr:last-child td{border-bottom:none;}
  <input type="email" id="loginEmail" placeholder="ton.email@exemple.com">
  <button id="loginBtn">Recevoir le lien de connexion</button>
  <div class="msg" id="loginMsg"></div>
+ <div id="codeBox" style="display:none;margin-top:10px;width:100%;max-width:280px">
+  <input type="text" id="loginCode" inputmode="numeric" autocomplete="one-time-code" placeholder="Code reçu par email">
+  <button id="codeBtn">Valider le code</button>
+ </div>
 </div>
 <div id="app" style="display:none">
  <div class="topbar">
@@ -190,8 +201,16 @@ document.getElementById("loginBtn").onclick = async ()=>{
  if(!email){ msg.textContent="Merci de saisir un email."; msg.classList.add("err"); return; }
  msg.textContent="Envoi en cours...";
  const {error} = await sb.auth.signInWithOtp({email, options:{emailRedirectTo: window.location.href}});
- msg.textContent = error ? "Erreur : "+error.message : "Lien envoyé ! Vérifie ta boîte mail (et les spams).";
+ msg.textContent = error ? "Erreur : "+error.message : "Email envoyé ! Clique sur le lien, ou saisis ci-dessous le code reçu (utile dans l'app installée sur iPhone).";
+ if(!error) document.getElementById("codeBox").style.display="block";
  if(error) msg.classList.add("err");
+};
+document.getElementById("codeBtn").onclick = async ()=>{
+ const email = document.getElementById("loginEmail").value.trim();
+ const token = document.getElementById("loginCode").value.trim();
+ const msg = document.getElementById("loginMsg"); msg.classList.remove("err");
+ const {error} = await sb.auth.verifyOtp({email, token, type:"email"});
+ if(error){ msg.textContent = "Code invalide ou expiré."; msg.classList.add("err"); }
 };
 sb.auth.onAuthStateChange((event, session)=>{ if(session) loadJoueurEtDemarre(session); });
 sb.auth.getSession().then(({data})=>{ if(data.session) loadJoueurEtDemarre(data.session); });
@@ -573,6 +592,45 @@ function openAgendaMenu(){
   }},
  ]);
 }
+const VAPID_PUBLIC = "BDtnsQ82oKQ9B3oUuFY0FOWWs8h5M2zGxOSD38ol4ykrbdHE9XqgClg-01qNo7O9jH4gJ3pv0xCEUvUG_lmHrok";
+const u8 = b64 => { const r = atob((b64+"=".repeat((4-b64.length%4)%4)).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from([...r].map(c=>c.charCodeAt(0))); };
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+async function pushState(){
+ if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return (isIOS && !isStandalone) ? "ios-install" : "unsupported";
+ if(Notification.permission === "denied") return "denied";
+ const reg = await navigator.serviceWorker.getRegistration();
+ const sub = reg && await reg.pushManager.getSubscription();
+ return sub ? "on" : "off";
+}
+async function activerPush(){
+ const reg = await navigator.serviceWorker.register("sw.js");
+ await navigator.serviceWorker.ready;
+ if(await Notification.requestPermission() !== "granted") return;
+ const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:u8(VAPID_PUBLIC)});
+ const j = sub.toJSON();
+ const {error} = await sb.from("push_subscriptions").upsert({joueur_id:MY_ID, endpoint:j.endpoint, p256dh:j.keys.p256dh, auth_key:j.keys.auth}, {onConflict:"endpoint"});
+ if(error) throw new Error(error.message);
+}
+async function desactiverPush(){
+ const reg = await navigator.serviceWorker.getRegistration();
+ const sub = reg && await reg.pushManager.getSubscription();
+ if(sub){ await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
+}
+async function renderPushZone(){
+ const z = document.getElementById("pushZone"); if(!z) return;
+ const st = await pushState();
+ const note = t => `<div style="font-size:12px;opacity:.9">${t}</div>`;
+ z.innerHTML = st==="on" ? `<div style="font-size:13px;font-weight:600">🔔 Notifications activées sur cet appareil</div><a href="#" id="pushOff">Désactiver</a>`
+  : st==="off" ? `<button id="pushOn" style="width:100%;padding:11px;border-radius:10px;border:none;background:#fff;color:var(--green);font-weight:700">🔔 Activer les notifications</button>`
+  : st==="denied" ? note("Notifications bloquées : autorise-les dans les réglages de ton navigateur ou de ton appareil.")
+  : st==="ios-install" ? note("Sur iPhone : touche Partager puis « Sur l'écran d'accueil », ouvre l'app depuis son icône, puis reviens ici pour activer les notifications.")
+  : note("Notifications push indisponibles ici (essaie depuis l'app installée).");
+ const on = document.getElementById("pushOn");
+ if(on) on.onclick = async ()=>{ try{ await activerPush(); }catch(e){ alert("Activation impossible : "+e.message); } renderPushZone(); };
+ const off = document.getElementById("pushOff");
+ if(off) off.onclick = async e=>{ e.preventDefault(); await desactiverPush(); renderPushZone(); };
+}
 function openNotif(){
  document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
  ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"><div>${n.message}<div class="t">${relTime(n.created_at)}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
@@ -592,9 +650,11 @@ function openProfil(){
   <div class="ov-head"><b></b><button class="x" id="pcl">✕</button></div>
   <div style="font-weight:800;letter-spacing:1px;margin-top:-30px">PROFIL</div>
   <div class="av2">${initials(ME)}</div><h4>${ME.toUpperCase()}</h4><a>${MY_EMAIL}</a>
+  <div id="pushZone" style="margin:22px 20px 0"></div>
   <div class="deco"><a href="#" id="logoutLink">Se déconnecter</a></div>
  </div>`;
  document.getElementById("profOv").classList.add("open");
+ renderPushZone();
  document.getElementById("pcl").onclick=()=>document.getElementById("profOv").classList.remove("open");
  document.getElementById("logoutLink").onclick=async (e)=>{e.preventDefault(); await sb.auth.signOut(); location.reload();};
 }
