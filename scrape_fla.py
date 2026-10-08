@@ -18,6 +18,19 @@ HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 MOIS = {"janv":1,"févr":2,"mars":3,"avr":4,"mai":5,"juin":6,"juil":7,"août":8,
         "sept":9,"oct":10,"nov":11,"déc":12}
 JOURS = "lun|mar|mer|jeu|ven|sam|dim"
+
+def paris_offset(dt):
+    """Retourne '+02:00' (été) ou '+01:00' (hiver) pour une date Europe/Paris,
+    selon la règle UE (dernier dimanche de mars à dernier dimanche d'octobre)."""
+    import datetime as _dt
+    def dernier_dimanche(annee, mois):
+        d = _dt.date(annee, mois, 1)
+        d = (d.replace(month=mois % 12 + 1, day=1) if mois < 12 else _dt.date(annee + 1, 1, 1)) - _dt.timedelta(days=1)
+        while d.weekday() != 6: d -= _dt.timedelta(days=1)
+        return d
+    debut_ete = dernier_dimanche(dt.year, 3)
+    fin_ete = dernier_dimanche(dt.year, 10)
+    return "+02:00" if debut_ete <= dt.date() < fin_ete else "+01:00"
 DATE_RE = re.compile(rf"({JOURS})\.\s*(\d{{1,2}})\s+({'|'.join(MOIS)})\.?\s+(\d{{4}})")
 TIME_RE = re.compile(r"(\d{1,2})h(\d{2})")
 SCORE_RE = re.compile(r"^(\d+)\s*–\s*(\d+)\s*([VDN])$")
@@ -120,7 +133,7 @@ def sync_to_supabase(matches):
             "source_id": source_id(m),
             "saison_id": saison_id,
             "competition": "coupe" if m["competition"] == "Coupe" else "championnat",
-            "date_heure": m["date"] + "+02:00",  # heure de Paris (à ajuster en hiver si besoin)
+            "date_heure": m["date"] + paris_offset(__import__("datetime").datetime.fromisoformat(m["date"])),
             "equipe_domicile": m["domicile"],
             "equipe_exterieur": m["exterieur"],
             "adresse_stade": m["venue"],
@@ -136,11 +149,65 @@ def sync_to_supabase(matches):
     else:
         print(f"❌ Erreur synchro Supabase ({r.status_code}) : {r.text[:500]}")
 
+def _ics_escape(s):
+    return (s or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+def _ics_fold(line):
+    """Replie les lignes de plus de 75 octets (RFC 5545)."""
+    raw = line.encode("utf-8")
+    if len(raw) <= 75:
+        return line
+    parts, cur = [], b""
+    for ch in line:
+        b = ch.encode("utf-8")
+        if len(cur) + len(b) > (75 if not parts else 74):
+            parts.append(cur); cur = b
+        else:
+            cur += b
+    parts.append(cur)
+    return "\r\n ".join(p.decode("utf-8") for p in parts)
+
+def generate_ics(matches, path="calendrier.ics"):
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+    now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    lines = [
+        "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Paris ASF//Calendrier FLA//FR",
+        "CALSCALE:GREGORIAN", "METHOD:PUBLISH", "X-WR-CALNAME:Paris ASF",
+        "X-WR-TIMEZONE:Europe/Paris", "REFRESH-INTERVAL;VALUE=DURATION:PT6H", "X-PUBLISHED-TTL:PT6H",
+    ]
+    n = 0
+    for m in matches:
+        if not m.get("date"):
+            continue
+        local = datetime.fromisoformat(m["date"])
+        off_h = int(paris_offset(local)[1:3])
+        debut = (local - timedelta(hours=off_h)).strftime("%Y%m%dT%H%M%SZ")
+        fin = (local - timedelta(hours=off_h) + timedelta(hours=1)).strftime("%Y%m%dT%H%M%SZ")
+        titre = f"{m['domicile']} - {m['exterieur']}"
+        if m.get("score"):
+            titre += f" ({m['score'][0]}-{m['score'][1]})"
+        if m["competition"] == "Coupe":
+            titre = "🏆 " + titre
+        uid = hashlib.sha1(source_id(m).encode("utf-8")).hexdigest() + "@paris-asf"
+        lines += [
+            "BEGIN:VEVENT", f"UID:{uid}", f"DTSTAMP:{now}", f"DTSTART:{debut}", f"DTEND:{fin}",
+            f"SUMMARY:{_ics_escape(titre)}", f"LOCATION:{_ics_escape(m.get('venue'))}",
+            f"DESCRIPTION:{_ics_escape(m.get('competition_nom') or m['competition'])}",
+            "END:VEVENT",
+        ]
+        n += 1
+    lines.append("END:VCALENDAR")
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write("\r\n".join(_ics_fold(l) for l in lines) + "\r\n")
+    print(f"✅ {n} événements écrits dans {path}")
+
 if __name__ == "__main__":
     matches = parse_matches()
     with open("matches.json", "w", encoding="utf-8") as f:
         json.dump(matches, f, ensure_ascii=False, indent=2)
     print(f"✅ {len(matches)} matchs écrits dans matches.json")
+    generate_ics(matches)
     sync_to_supabase(matches)
 
     classement = parse_classement()
