@@ -130,6 +130,17 @@ tr:last-child td{border-bottom:none;}
 .ov2.open{display:block;}
 .sheet .opt{padding:13px 4px;font-size:15px;border-bottom:1px solid var(--line);}
 .sheet .opt:last-child{border:none;color:var(--red);text-align:center;}
+.small{font-size:12px;color:var(--muted);}
+.tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;}
+.tag.g{background:rgba(2,135,108,.15);color:var(--green);}
+.tag.r{background:rgba(186,0,0,.12);color:var(--red);}
+.tag.grey{background:var(--chipbg);color:var(--muted);}
+.seg{display:flex;gap:6px;}
+.segbtn{min-width:54px;padding:9px 10px;border-radius:8px;border:none;font-weight:700;font-size:12px;background:var(--chipbg);color:var(--muted);cursor:pointer;}
+.segbtn.on-yes{background:var(--green);color:#fff;}
+.segbtn.on-no{background:var(--red);color:#fff;}
+.chk{cursor:pointer;}
+.chk input[type=checkbox]{width:22px;height:22px;accent-color:var(--green);flex-shrink:0;}
 </style>
 </head>
 <body>
@@ -275,10 +286,11 @@ async function loadPresences(m){
 }
 async function setPresence(m, statut){
  if(!m.dbId) return;
- await sb.from("presences").upsert(
+ const {error} = await sb.from("presences").upsert(
   {match_id:m.dbId, joueur_id:MY_ID, statut, updated_at:new Date().toISOString()},
   {onConflict:"match_id,joueur_id"}
  );
+ if(error){ alert("Enregistrement impossible : "+error.message); return; }
  await loadPresences(m); render();
 }
 
@@ -308,10 +320,11 @@ async function basculerRole(id, roleActuel){
 }
 
 async function setPresenceManager(m, joueurId, statut){
- await sb.from("presences").upsert(
+ const {error} = await sb.from("presences").upsert(
   {match_id:m.dbId, joueur_id:joueurId, statut, updated_at:new Date().toISOString()},
   {onConflict:"match_id,joueur_id"}
  );
+ if(error){ alert("Modification impossible : "+error.message); return; }
  await loadPresences(m); render();
 }
 
@@ -359,19 +372,23 @@ async function enregistrerStats(m){
  }));
  const {error} = await sb.from("stats_joueurs").upsert(writes, {onConflict:"match_id,joueur_id"});
  if(error){ alert("Erreur à l'enregistrement : "+error.message); return; }
- await sb.from("matchs").update({stats_remplies:true}).eq("id", m.dbId);
+ const r2 = await sb.from("matchs").update({stats_remplies:true}).eq("id", m.dbId).select("id");
+ if(r2.error || !r2.data || !r2.data.length){ alert("Enregistrement impossible : "+(r2.error?r2.error.message:"droits insuffisants (SQL add_stats_manager.sql exécuté ?)")); return; }
  m.statsRemplies = true;
  await loadPastMatchData(m); render();
 }
 async function validerFeuille(m){
  const writes = Object.entries(m.validationDraft).map(([joueur_id, a_reellement_joue])=>({match_id:m.dbId, joueur_id, a_reellement_joue}));
- await sb.from("presences").upsert(writes, {onConflict:"match_id,joueur_id"});
- await sb.from("matchs").update({feuille_validee:true}).eq("id", m.dbId);
+ const r1 = await sb.from("presences").upsert(writes, {onConflict:"match_id,joueur_id"});
+ if(r1.error){ alert("Validation impossible : "+r1.error.message); return; }
+ const r2 = await sb.from("matchs").update({feuille_validee:true}).eq("id", m.dbId).select("id");
+ if(r2.error || !r2.data || !r2.data.length){ alert("Validation impossible : "+(r2.error?r2.error.message:"droits insuffisants (SQL add_feuille_validee.sql exécuté ?)")); return; }
  m.feuilleValidee = true;
  await loadPastMatchData(m); render();
 }
 async function voter(m, candidatId){
- await sb.from("votes_homme_du_match").upsert({match_id:m.dbId, votant_id:MY_ID, candidat_id:candidatId}, {onConflict:"match_id,votant_id"});
+ const {error} = await sb.from("votes_homme_du_match").upsert({match_id:m.dbId, votant_id:MY_ID, candidat_id:candidatId}, {onConflict:"match_id,votant_id"});
+ if(error){ alert("Vote impossible : "+error.message); return; }
  await loadPastMatchData(m); render();
 }
 
@@ -408,7 +425,7 @@ function viewClub(){
   ${effectif.map(j=>`<div class="voteopt">
    <span>${j.nom}</span>
    <span style="display:flex;gap:8px;align-items:center">
-    <span class="badge ${j.role==='manager'?'g':'grey'}" data-toggle-role="${j.id}" data-role-actuel="${j.role}" style="cursor:pointer">${j.role==='manager'?'Manager':'Joueur'}</span>
+    <span class="tag ${j.role==='manager'?'g':'grey'}" data-toggle-role="${j.id}" data-role-actuel="${j.role}" style="cursor:pointer">${j.role==='manager'?'Manager':'Joueur'}</span>
     ${j.id!==MY_ID?`<span class="del" data-remove-joueur="${j.id}" data-nom-joueur="${j.nom}">🗑</span>`:''}
    </span></div>`).join("")}
   <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
@@ -446,9 +463,9 @@ function viewMatch(m){
    h+=`<h3 class="sect">Modifier la présence (manager)</h3><div class="card">`;
    h+=effectif.filter(j=>j.id!==MY_ID).map(j=>{
     const pj=(m.presenceReal||{})[j.id];
-    return `<div class="voteopt"><span>${j.nom}</span><span style="display:flex;gap:6px">
-     <span class="badge ${pj==='oui'?'g':'grey'}" data-mgr-pres="${j.id}" data-mgr-val="oui" style="cursor:pointer">OUI</span>
-     <span class="badge ${pj==='non'?'r':'grey'}" data-mgr-pres="${j.id}" data-mgr-val="non" style="cursor:pointer">NON</span>
+    return `<div class="voteopt"><span>${j.nom}</span><span class="seg">
+     <button class="segbtn ${pj==='oui'?'on-yes':''}" data-mgr-pres="${j.id}" data-mgr-val="oui">OUI</button>
+     <button class="segbtn ${pj==='non'?'on-no':''}" data-mgr-pres="${j.id}" data-mgr-val="non">NON</button>
     </span></div>`;
    }).join("");
    h+=`</div>`;
@@ -458,11 +475,15 @@ function viewMatch(m){
  } else {
   if(ROLE==="manager"){
    h+=`<h3 class="sect">Qui a réellement joué ?</h3><div class="card">`;
-   if(!m.feuilleValidee) h+=`<div class="small" style="color:var(--muted);margin-bottom:8px">Pré-coché selon les présences déclarées — ajuste si besoin puis valide.</div>`;
+   h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">${m.feuilleValidee?"Coche les joueurs qui ont réellement joué.":"Pré-coché selon les présences déclarées — ajuste si besoin puis valide."}</div>`;
    h+=effectif.map(j=>{
-    const joue = (m.validationDraft||{})[j.id];
-    return `<div class="voteopt" data-toggle-joue="${j.id}" style="cursor:pointer"><span>${j.nom}</span><span class="badge ${joue?'g':'grey'}">${joue?'✓ A joué':'Non'}</span></div>`;
+    const joue = !!(m.validationDraft||{})[j.id];
+    const row = (m.presenceAll||[]).find(r=>r.joueur_id===j.id);
+    const decl = row && row.statut==="oui" ? ["g","Avait dit OUI"] : row && row.statut==="non" ? ["r","Avait dit NON"] : ["grey","Sans réponse"];
+    return `<label class="voteopt chk"><span style="display:flex;align-items:center;gap:12px"><input type="checkbox" data-toggle-joue="${j.id}" ${joue?"checked":""}><span>${j.nom}</span></span><span class="tag ${decl[0]}">${decl[1]}</span></label>`;
    }).join("");
+   const nbSel = Object.values(m.validationDraft||{}).filter(Boolean).length;
+   h+=`<div style="margin-top:10px;font-weight:700;font-size:13px">${nbSel} joueur${nbSel>1?"s":""} sélectionné${nbSel>1?"s":""}</div>`;
    h+=`<button class="votebtn" style="margin-top:10px" data-valider-feuille="1">${m.feuilleValidee?'Mettre à jour la feuille':'Valider la feuille de match'}</button>`;
    h+=`</div>`;
   }
@@ -540,9 +561,8 @@ function bind(){
  document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
  document.querySelectorAll("[data-mgr-pres]").forEach(b=>b.onclick=()=>setPresenceManager(currentMatch, b.dataset.mgrPres, b.dataset.mgrVal));
  document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
- document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onclick=()=>{
-  const id=el.dataset.toggleJoue;
-  currentMatch.validationDraft[id] = !currentMatch.validationDraft[id];
+ document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onchange=()=>{
+  currentMatch.validationDraft[el.dataset.toggleJoue] = el.checked;
   render();
  });
  const vf=document.querySelector("[data-valider-feuille]"); if(vf) vf.onclick=()=>validerFeuille(currentMatch);
