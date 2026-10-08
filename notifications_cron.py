@@ -5,12 +5,19 @@ Génère les notifications quotidiennes pour l'app Paris ASF :
 - notification "vote disponible" 2h après le match, une fois la feuille + les stats validées
 Lancé quotidiennement par GitHub Actions avec la clé service_role (contourne les RLS).
 """
-import os, json, requests
+import os, re, json, requests
 from datetime import datetime, timedelta, timezone
 
 URL = (os.environ.get("SUPABASE_URL") or "").strip().strip('"').rstrip("/")
 KEY = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip().strip('"')
 HEADERS = {"apikey": KEY, "Authorization": f"Bearer {KEY}", "Content-Type": "application/json"}
+
+def parse_ts(valeur):
+    """Lit un horodatage Supabase. Python 3.10 n'accepte que 3 ou 6 chiffres de fraction de seconde,
+    alors que Supabase en renvoie parfois 5 (ex. 19.80524) : on normalise à 6."""
+    v = valeur.replace("Z", "+00:00")
+    v = re.sub(r"\.(\d+)", lambda m: "." + m.group(1)[:6].ljust(6, "0"), v, count=1)
+    return datetime.fromisoformat(v)
 
 def get(path, params=""):
     r = requests.get(f"{URL}/rest/v1/{path}{params}", headers=HEADERS, timeout=20)
@@ -74,7 +81,7 @@ def deja_relance_recemment(joueur_id, match_id):
     rows = get("notifications", f"?joueur_id=eq.{joueur_id}&match_id=eq.{match_id}&type=eq.relance_presence&select=created_at&order=created_at.desc&limit=1")
     if not rows:
         return False
-    dernier = datetime.fromisoformat(rows[0]["created_at"].replace("Z", "+00:00"))
+    dernier = parse_ts(rows[0]["created_at"])
     return (datetime.now(timezone.utc) - dernier) < timedelta(days=3)
 
 def gerer_presence_a_venir():
@@ -85,7 +92,7 @@ def gerer_presence_a_venir():
     matchs = get("matchs", f"?statut=eq.a_venir&date_heure=gte.{iso_z(now)}&date_heure=lte.{iso_z(now+timedelta(days=20))}&select=id,date_heure")
     joueurs = get("joueurs", "?actif=eq.true&select=id,nom")
     for m in matchs:
-        date_match = datetime.fromisoformat(m["date_heure"].replace("Z", "+00:00"))
+        date_match = parse_ts(m["date_heure"])
         jours_restants = (date_match - now).days
         presences = {p["joueur_id"]: p["statut"] for p in get("presences", f"?match_id=eq.{m['id']}&select=joueur_id,statut")}
         for j in joueurs:
@@ -104,7 +111,7 @@ def gerer_vote_disponible():
     now = datetime.now(timezone.utc)
     matchs = get("matchs", "?statut=eq.termine&feuille_validee=eq.true&stats_remplies=eq.true&select=id,date_heure")
     for m in matchs:
-        date_match = datetime.fromisoformat(m["date_heure"].replace("Z", "+00:00"))
+        date_match = parse_ts(m["date_heure"])
         if (now - date_match) < timedelta(hours=2):
             continue
         presents = get("presences", f"?match_id=eq.{m['id']}&a_reellement_joue=eq.true&select=joueur_id")
