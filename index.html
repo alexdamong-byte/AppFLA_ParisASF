@@ -369,7 +369,9 @@ function matchRow(m, isNext){
   </div></div>`;
 }
 function viewCal(){
- return `<h2 class="title">CALENDRIER</h2><div class="sheet-card">${matches.length?matches.map((m,i)=>matchRow(m, m.status==="upcoming" && !matches.slice(0,i).some(x=>x.status==="upcoming"))).join(""):'<div class="mrow">Aucun match trouvé.</div>'}</div>`;
+ return `<h2 class="title">CALENDRIER</h2>
+ <div style="text-align:center;margin:-4px 0 10px"><a data-agenda="1" style="color:var(--green);font-size:12px;text-decoration:underline;cursor:pointer">📆 Ajouter à mon agenda</a></div>
+ <div class="sheet-card">${matches.length?matches.map((m,i)=>matchRow(m, m.status==="upcoming" && !matches.slice(0,i).some(x=>x.status==="upcoming"))).join(""):'<div class="mrow">Aucun match trouvé.</div>'}</div>`;
 }
 function viewRank(){
  return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 8px"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
@@ -541,14 +543,35 @@ function bind(){
   const role=document.getElementById("rManager").classList.contains("yesOn")?"manager":"joueur";
   ajouterJoueur(nom, email, role);
  };
- const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openSheet(["Ouvrir dans Google Maps","Ouvrir dans Waze","Ouvrir dans Apple Plans"]);
+ const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openVenueMenu(currentMatch.venue);
+ const ag=document.querySelector("[data-agenda]"); if(ag) ag.onclick=openAgendaMenu;
 }
 function openSheet(opts){
  const s=document.getElementById("sheet"), o=document.getElementById("ov2");
- s.innerHTML=opts.map(x=>`<div class="opt">${x}</div>`).join("")+`<div class="opt">Annuler</div>`;
+ const items=opts.map(x=>typeof x==="string"?{label:x}:x);
+ s.innerHTML=items.map(x=>`<div class="opt">${x.label}</div>`).join("")+`<div class="opt">Annuler</div>`;
  s.classList.add("open"); o.classList.add("open");
  const close=()=>{s.classList.remove("open"); o.classList.remove("open");};
- o.onclick=close; s.querySelectorAll(".opt").forEach(x=>x.onclick=close);
+ o.onclick=close;
+ s.querySelectorAll(".opt").forEach((el,i)=>el.onclick=()=>{ close(); if(items[i]&&items[i].run) items[i].run(); });
+}
+function openVenueMenu(venue){
+ const q=encodeURIComponent(venue);
+ openSheet([
+  {label:"Ouvrir dans Google Maps", run:()=>window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,"_blank")},
+  {label:"Ouvrir dans Waze", run:()=>window.open(`https://waze.com/ul?q=${q}&navigate=yes`,"_blank")},
+  {label:"Ouvrir dans Apple Plans", run:()=>window.open(`https://maps.apple.com/?q=${q}`,"_blank")},
+ ]);
+}
+function openAgendaMenu(){
+ const https=new URL("calendrier.ics", location.href).href;
+ const webcal=https.replace(/^https?:/,"webcal:");
+ openSheet([
+  {label:"S'abonner (iPhone, Mac, Android)", run:()=>{ window.location.href=webcal; }},
+  {label:"Copier le lien (Google Agenda, Outlook…)", run:()=>{
+    (navigator.clipboard?navigator.clipboard.writeText(https):Promise.reject()).then(()=>alert("Lien copié !")).catch(()=>prompt("Copie ce lien :", https));
+  }},
+ ]);
 }
 function openNotif(){
  document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
