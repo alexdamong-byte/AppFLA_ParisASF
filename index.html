@@ -6,6 +6,7 @@
 <title>Paris ASF</title>
 <link rel="manifest" href="manifest.webmanifest">
 <meta name="theme-color" content="#0a1119">
+<script>try{if(localStorage.getItem("parisasf_theme")==="dark")document.documentElement.setAttribute("data-theme","dark")}catch(e){}</script>
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
@@ -123,7 +124,6 @@ tr:last-child td{border-bottom:none;}
 .roleswitch{display:flex;gap:8px;justify-content:center;margin-top:22px;padding:0 20px;}
 .roleswitch button{flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.5);background:none;color:#fff;font-size:12px;font-weight:600;}
 .roleswitch button.on{background:#fff;color:var(--green);}
-.themetoggle{font-size:17px;background:none;border:none;color:#fff;cursor:pointer;}
 .sheet{position:fixed;left:0;right:0;bottom:0;background:var(--card);color:var(--text);border-radius:16px 16px 0 0;
  max-width:460px;margin:0 auto;padding:14px 16px calc(20px + env(safe-area-inset-bottom,0));display:none;z-index:40;}
 .sheet.open{display:block;}
@@ -142,6 +142,15 @@ tr:last-child td{border-bottom:none;}
 .segbtn.on-no{background:var(--red);color:#fff;}
 .chk{cursor:pointer;}
 .chk input[type=checkbox]{width:22px;height:22px;accent-color:var(--green);flex-shrink:0;}
+.modalbg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;}
+.modal{background:var(--card);color:var(--text);border-radius:16px;padding:20px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35);}
+.modal h4{font-size:17px;margin-bottom:8px;}
+.modal p{font-size:13.5px;color:var(--muted);line-height:1.45;}
+.mbtns{display:flex;gap:10px;}
+.mbtn{flex:1;padding:12px;border-radius:10px;border:none;font-weight:700;font-size:14px;background:var(--chipbg);color:var(--text);cursor:pointer;}
+.mbtn.danger{background:var(--red);color:#fff;}
+.mbtn:disabled{opacity:.4;cursor:not-allowed;}
+.delbtn{background:none;border:none;font-size:18px;padding:6px 8px;cursor:pointer;color:var(--red);}
 </style>
 </head>
 <body>
@@ -160,7 +169,6 @@ tr:last-child td{border-bottom:none;}
  <div class="topbar">
   <b>PARIS ASF</b>
   <div class="right">
-   <button class="themetoggle" id="themeBtn">🌙</button>
    <button class="iconbtn" id="bellBtn">🔔<span class="badge" id="bellBadge" style="display:none"></span></button>
    <div class="avatar" id="avatarBtn"></div>
   </div>
@@ -184,12 +192,13 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let ME="", MY_ID="", MY_EMAIL="", ROLE="joueur", currentTab="cal", currentMatch=null, theme="light";
 const initials=n=>n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
+const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cleanVenue=v=>(v||"").replace(/\s*\(ouvre l'itinéraire[^)]*\)\s*/gi,"").trim()||"Lieu à confirmer";
 let effectif=[]; // [{id, nom}]
 
 async function loadJoueurEtDemarre(session){
  const email = session.user.email;
- const {data, error} = await sb.from("joueurs").select("id,nom,role").eq("email", email).maybeSingle();
+ const {data, error} = await sb.from("joueurs").select("id,nom,role").eq("email", email).eq("actif", true).maybeSingle();
  if(error || !data){
   document.getElementById("loginMsg").innerHTML = "Cet email ne fait pas partie de l'effectif enregistré.";
   document.getElementById("loginMsg").classList.add("err");
@@ -253,9 +262,6 @@ async function loadDonneesFLA(){
    .sort((a,b)=>b.pt-a.pt);
  }catch(e){ console.error("Chargement FLA impossible", e); }
 }
-const club=[{n:"Adam Belghiti",j:17,b:1,pd:0,gb:1,hm:3},{n:"Alexandre Khedir",j:22,b:2,pd:0,gb:1,hm:7},
- {n:"Raphael Bonnet",j:26,b:2,pd:4,gb:1,hm:9},{n:"Stan Jaillard",j:24,b:0,pd:3,gb:1,hm:13},
- {n:"Jimmy Pereira",j:19,b:4,pd:0,gb:0,hm:9},{n:"Badr Benslimane",j:16,b:0,pd:3,gb:1,hm:7}];
 let notifs=[];
 function relTime(iso){
  const diff = Date.now()-new Date(iso).getTime();
@@ -304,14 +310,33 @@ async function ajouterJoueur(nom, email, role){
  if(!nom||!email){ alert("Nom et email requis."); return; }
  const {error} = await sb.from("joueurs").insert({nom, email:email.trim().toLowerCase(), role});
  if(error){ alert("Erreur : "+error.message); return; }
- await refreshEffectif(); render();
+ await refreshEffectif(); await refreshClubStats(); render();
 }
-async function retirerJoueur(id, nom){
+function retirerJoueur(id){
  if(id===MY_ID){ alert("Tu ne peux pas te retirer toi-même."); return; }
- if(!confirm(`Retirer ${nom} de l'effectif ?`)) return;
- const {error} = await sb.from("joueurs").update({actif:false}).eq("id", id);
- if(error){ alert("Erreur : "+error.message); return; }
- await refreshEffectif(); render();
+ const j = effectif.find(e=>e.id===id); if(!j) return;
+ const qui = j.role==="manager" ? "ce manager" : "ce joueur";
+ const bg = document.createElement("div"); bg.className = "modalbg";
+ bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
+  <h4>Supprimer ${esc(j.nom)} ?</h4>
+  <p>Êtes-vous sûr de vouloir supprimer ${qui} du club ? Il n'aura plus accès à l'application. Son historique (présences, stats, votes) est conservé.</p>
+  <label class="chk" style="display:flex;gap:10px;align-items:flex-start;margin:14px 0"><input type="checkbox" id="mdlChk" style="accent-color:var(--red)"><span>Oui, je confirme la suppression de <b>${esc(j.nom)}</b></span></label>
+  <div class="mbtns"><button class="mbtn" id="mdlCancel">Annuler</button><button class="mbtn danger" id="mdlOk" disabled>Supprimer</button></div>
+ </div>`;
+ document.body.appendChild(bg);
+ const close = ()=>bg.remove();
+ const chk = bg.querySelector("#mdlChk"), ok = bg.querySelector("#mdlOk");
+ bg.querySelector("#mdlCancel").onclick = close;
+ bg.onclick = e=>{ if(e.target===bg) close(); };
+ chk.onchange = ()=>{ ok.disabled = !chk.checked; };
+ ok.onclick = async ()=>{
+  if(!chk.checked) return;
+  ok.disabled = true;
+  const r = await sb.from("joueurs").update({actif:false}).eq("id", id).select("id");
+  close();
+  if(r.error || !r.data || !r.data.length){ alert("Suppression impossible : "+(r.error?r.error.message:"droits insuffisants (SQL add_gestion_effectif.sql exécuté ?)")); return; }
+  await refreshEffectif(); await refreshClubStats(); render();
+ };
 }
 async function basculerRole(id, roleActuel){
  const nouveau = roleActuel==="manager" ? "joueur" : "manager";
@@ -415,11 +440,58 @@ function viewRank(){
  ${ranking.map((r,i)=>`<tr class="${r.me?'hi':''}"><td>${i+1}</td><td>${r.p}</td><td><b>${r.pt}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.l}</td></tr>`).join("")}
  </table></div>`;
 }
+let clubRows=null, clubErr=null;
+async function refreshClubStats(){
+ const ids = matches.filter(m=>m.dbId).map(m=>m.dbId);
+ const [r1,r2,r3,r4] = await Promise.all([
+  ids.length ? sb.from("presences").select("match_id,joueur_id").in("match_id", ids).eq("a_reellement_joue", true) : {data:[]},
+  ids.length ? sb.from("stats_joueurs").select("match_id,joueur_id,buts,passes_decisives,gardien").in("match_id", ids) : {data:[]},
+  ids.length ? sb.from("votes_homme_du_match").select("match_id,votant_id,candidat_id").in("match_id", ids) : {data:[]},
+  sb.from("joueurs").select("id,nom,actif"),
+ ]);
+ const err = [r1,r2,r3,r4].find(r=>r.error);
+ if(err){ clubErr = err.error.message; return; }
+ clubErr = null;
+ const byId = {}; matches.forEach(m=>{ if(m.dbId) byId[m.dbId]=m; });
+ const tot = {};
+ const row = id => tot[id] || (tot[id] = {j:0,b:0,pd:0,gb:0,hm:0});
+ const parMatch = {};
+ // J : matchs réellement joués (feuille validée par un manager)
+ (r1.data||[]).forEach(p=>{
+  const m = byId[p.match_id]; if(!m || !m.feuilleValidee) return;
+  row(p.joueur_id).j++; (parMatch[p.match_id] = parMatch[p.match_id] || []).push(p.joueur_id);
+ });
+ // B / PD / GB : stats validées par un manager
+ (r2.data||[]).forEach(st=>{
+  const m = byId[st.match_id]; if(!m || !m.statsRemplies) return;
+  const r = row(st.joueur_id); r.b += st.buts||0; r.pd += st.passes_decisives||0; if(st.gardien) r.gb++;
+ });
+ // HM : uniquement si le vote est clos (tous les joueurs ont voté, ou 48h après le match)
+ const votesParMatch = {};
+ (r3.data||[]).forEach(v=>{ (votesParMatch[v.match_id] = votesParMatch[v.match_id] || []).push(v); });
+ Object.keys(parMatch).forEach(mid=>{
+  const m = byId[mid]; if(!m.statsRemplies) return;
+  const votes = votesParMatch[mid] || []; if(!votes.length) return;
+  const votants = new Set(votes.map(v=>v.votant_id));
+  const clos = parMatch[mid].every(id=>votants.has(id)) || (Date.now()-m.dt.getTime()) >= 48*3600*1000;
+  if(!clos) return;
+  const cnt = {}; votes.forEach(v=>{ cnt[v.candidat_id] = (cnt[v.candidat_id]||0)+1; });
+  const max = Math.max(...Object.values(cnt));
+  Object.keys(cnt).filter(id=>cnt[id]===max).forEach(id=>row(id).hm++);
+ });
+ clubRows = (r4.data||[])
+  .filter(j=>j.actif || (tot[j.id] && tot[j.id].j>0))
+  .map(j=>Object.assign({id:j.id, n:j.nom}, tot[j.id] || {j:0,b:0,pd:0,gb:0,hm:0}))
+  .sort((a,b)=>a.n.localeCompare(b.n,"fr"));
+}
 function viewClub(){
  const jEquipe = matches.filter(m=>m.status==="past").length;
- const tot={j:jEquipe,b:club.reduce((a,c)=>a+c.b,0),pd:club.reduce((a,c)=>a+c.pd,0)};
- return `<h2 class="title">CLUB</h2><div class="sheet-card" style="padding:6px 8px"><table><tr><th>Joueurs</th><th>J</th><th>B</th><th>PD</th><th>GB</th><th>HM</th></tr>
- ${club.map(p=>`<tr><td>${p.n}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
+ const rows=clubRows||[]; const tot={j:jEquipe,b:rows.reduce((a,c)=>a+c.b,0),pd:rows.reduce((a,c)=>a+c.pd,0)};
+ return `<h2 class="title">CLUB</h2>
+ <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours · championnat + Coupe</div><div class="sheet-card" style="padding:6px 8px"><table><tr><th>Joueurs</th><th>J</th><th>B</th><th>PD</th><th>GB</th><th>HM</th></tr>
+ ${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
+  :clubRows===null?'<tr><td colspan="6" style="text-align:center;color:var(--muted)">Chargement des statistiques…</td></tr>'
+  :rows.map(p=>`<tr><td>${esc(p.n)}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
  <tr class="tot"><td>PARIS ASF</td><td>${tot.j}</td><td>${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
  </table></div>
  ${ROLE==='manager'?`<h3 class="sect">Gestion de l'effectif</h3><div class="card">
@@ -427,7 +499,7 @@ function viewClub(){
    <span>${j.nom}</span>
    <span style="display:flex;gap:8px;align-items:center">
     <span class="tag ${j.role==='manager'?'g':'grey'}" data-toggle-role="${j.id}" data-role-actuel="${j.role}" style="cursor:pointer">${j.role==='manager'?'Manager':'Joueur'}</span>
-    ${j.id!==MY_ID?`<span class="del" data-remove-joueur="${j.id}" data-nom-joueur="${j.nom}">🗑</span>`:''}
+    ${j.id!==MY_ID?`<button class="delbtn" data-remove-joueur="${j.id}" aria-label="Supprimer du club">🗑</button>`:''}
    </span></div>`).join("")}
   <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
    <input type="text" id="newNom" placeholder="Nom complet" style="width:100%;padding:9px;border-radius:8px;border:1px solid var(--line);background:var(--chipbg);color:var(--text);margin-bottom:6px">
@@ -474,8 +546,10 @@ function viewMatch(m){
  } else if(!m.dbId){
   h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base.</div>`;
  } else {
+  let feuilleHtml = "";
   if(ROLE==="manager"){
-   h+=`<h3 class="sect">Qui a réellement joué ?</h3><div class="card">`;
+   const hSave = h; h = "";
+   h+=`<h3 class="sect">${m.feuilleValidee?"Feuille de match (manager)":"Qui a réellement joué ?"}</h3><div class="card">`;
    h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">${m.feuilleValidee?"Coche les joueurs qui ont réellement joué.":"Pré-coché selon les présences déclarées — ajuste si besoin puis valide."}</div>`;
    h+=effectif.map(j=>{
     const joue = !!(m.validationDraft||{})[j.id];
@@ -487,7 +561,9 @@ function viewMatch(m){
    h+=`<div style="margin-top:10px;font-weight:700;font-size:13px">${nbSel} joueur${nbSel>1?"s":""} sélectionné${nbSel>1?"s":""}</div>`;
    h+=`<button class="votebtn" style="margin-top:10px" data-valider-feuille="1">${m.feuilleValidee?'Mettre à jour la feuille':'Valider la feuille de match'}</button>`;
    h+=`</div>`;
+   feuilleHtml = h; h = hSave;
   }
+  if(!m.feuilleValidee) h += feuilleHtml;
   h+=`<h3 class="sect">Homme du match</h3><div class="card">`;
   if(!m.feuilleValidee){
    h+=`<div class="small" style="color:var(--muted)">En attente de la feuille de match par un manager.</div>`;
@@ -532,6 +608,7 @@ function viewMatch(m){
    </table>`;
   }
   h+=`</div>`;
+  if(m.feuilleValidee) h += feuilleHtml;
  }
  return h;
 }
@@ -574,7 +651,7 @@ function bind(){
  });
  const ss=document.querySelector("[data-save-stats]"); if(ss) ss.onclick=()=>enregistrerStats(currentMatch);
  document.querySelectorAll("[data-toggle-role]").forEach(el=>el.onclick=()=>basculerRole(el.dataset.toggleRole, el.dataset.roleActuel));
- document.querySelectorAll("[data-remove-joueur]").forEach(el=>el.onclick=()=>retirerJoueur(el.dataset.removeJoueur, el.dataset.nomJoueur));
+ document.querySelectorAll("[data-remove-joueur]").forEach(el=>el.onclick=()=>retirerJoueur(el.dataset.removeJoueur));
  const rJ=document.getElementById("rJoueur"), rM=document.getElementById("rManager");
  if(rJ&&rM){ rJ.onclick=()=>{rJ.classList.add("yesOn"); rM.classList.remove("yesOn");}; rM.onclick=()=>{rM.classList.add("yesOn"); rJ.classList.remove("yesOn");}; }
  const aj=document.querySelector("[data-add-joueur]"); if(aj) aj.onclick=()=>{
@@ -672,21 +749,31 @@ function openProfil(){
   <div style="font-weight:800;letter-spacing:1px;margin-top:-30px">PROFIL</div>
   <div class="av2">${initials(ME)}</div><h4>${ME.toUpperCase()}</h4><a>${MY_EMAIL}</a>
   <div id="pushZone" style="margin:22px 20px 0"></div>
+  <div style="font-size:12px;opacity:.9;margin-top:20px">Thème</div>
+  <div class="roleswitch" style="margin-top:6px">
+   <button data-theme-set="light" class="${theme==='light'?'on':''}">☀️ Clair</button>
+   <button data-theme-set="dark" class="${theme==='dark'?'on':''}">🌙 Sombre</button>
+  </div>
   <div class="deco"><a href="#" id="logoutLink">Se déconnecter</a></div>
  </div>`;
  document.getElementById("profOv").classList.add("open");
  renderPushZone();
+ document.querySelectorAll("[data-theme-set]").forEach(b=>b.onclick=()=>{
+  setTheme(b.dataset.themeSet);
+  document.querySelectorAll("[data-theme-set]").forEach(x=>x.classList.toggle("on", x===b));
+ });
  document.getElementById("pcl").onclick=()=>document.getElementById("profOv").classList.remove("open");
  document.getElementById("logoutLink").onclick=async (e)=>{e.preventDefault(); await sb.auth.signOut(); location.reload();};
 }
 document.getElementById("bellBtn").onclick=openNotif;
 document.getElementById("avatarBtn").onclick=openProfil;
-document.getElementById("themeBtn").onclick=()=>{
- theme = theme==="light"?"dark":"light";
- document.documentElement.setAttribute("data-theme", theme==="dark"?"dark":"");
- document.getElementById("themeBtn").textContent = theme==="dark"?"☀️":"🌙";
-};
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{currentTab=b.dataset.tab; currentMatch=null; render();});
+function applyTheme(t){ theme=t; document.documentElement.setAttribute("data-theme", t==="dark"?"dark":""); }
+function setTheme(t){ applyTheme(t); try{ localStorage.setItem("parisasf_theme", t); }catch(_){} }
+try{ applyTheme(localStorage.getItem("parisasf_theme")==="dark"?"dark":"light"); }catch(_){}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
+ currentTab=b.dataset.tab; currentMatch=null; render();
+ if(currentTab==="club") refreshClubStats().then(()=>{ if(currentTab==="club" && !currentMatch) render(); });
+});
 </script>
 </body>
 </html>
