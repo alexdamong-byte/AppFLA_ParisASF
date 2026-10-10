@@ -9,16 +9,21 @@ self.addEventListener("push", e => {
     body: d.body || "",
     icon: "icon-192.png",
     badge: "icon-192.png",
-    data: { url: d.url || self.registration.scope },
+    data: { url: d.url || "./" },
   }));
 });
 
+// Un clic ouvre l'app sur le match concerné (lien ./?match=<id>) :
+// si l'app est déjà ouverte on lui envoie un message, sinon on ouvre une nouvelle fenêtre.
 self.addEventListener("notificationclick", e => {
   e.notification.close();
-  const url = (e.notification.data && e.notification.data.url) || self.registration.scope;
+  const url = new URL((e.notification.data && e.notification.data.url) || "./", self.registration.scope).href;
   e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
     for (const c of list) {
-      if (c.url.startsWith(self.registration.scope) && "focus" in c) return c.focus();
+      if (c.url.startsWith(self.registration.scope) && "focus" in c) {
+        c.postMessage({ type: "navigate", url });
+        return c.focus();
+      }
     }
     return self.clients.openWindow(url);
   }));
