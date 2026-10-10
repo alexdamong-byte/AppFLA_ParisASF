@@ -149,6 +149,7 @@ tr:last-child td{border-bottom:none;}
 .mbtns{display:flex;gap:10px;}
 .mbtn{flex:1;padding:12px;border-radius:10px;border:none;font-weight:700;font-size:14px;background:var(--chipbg);color:var(--text);cursor:pointer;}
 .mbtn.danger{background:var(--red);color:#fff;}
+.mbtn.primary{background:var(--green);color:#fff;}
 .mbtn:disabled{opacity:.4;cursor:not-allowed;}
 .delbtn{background:none;border:none;font-size:18px;padding:6px 8px;cursor:pointer;color:var(--red);}
 </style>
@@ -191,6 +192,7 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let ME="", MY_ID="", MY_EMAIL="", ROLE="joueur", currentTab="cal", currentMatch=null, theme="light";
+let pendingMatch = new URLSearchParams(location.search).get("match");
 const initials=n=>n.split(" ").map(w=>w[0]).slice(0,2).join("").toUpperCase();
 const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const cleanVenue=v=>(v||"").replace(/\s*\(ouvre l'itinéraire[^)]*\)\s*/gi,"").trim()||"Lieu à confirmer";
@@ -214,6 +216,11 @@ async function loadJoueurEtDemarre(session){
  document.getElementById("loginScreen").style.display="none";
  document.getElementById("app").style.display="block";
  render();
+ if(pendingMatch){
+  const id = pendingMatch; pendingMatch = null;
+  try{ history.replaceState(null, "", location.pathname); }catch(_){}
+  openMatchById(id);
+ }
 }
 document.getElementById("loginBtn").onclick = async ()=>{
  const email = document.getElementById("loginEmail").value.trim();
@@ -221,7 +228,7 @@ document.getElementById("loginBtn").onclick = async ()=>{
  msg.classList.remove("err");
  if(!email){ msg.textContent="Merci de saisir un email."; msg.classList.add("err"); return; }
  msg.textContent="Envoi en cours...";
- const {error} = await sb.auth.signInWithOtp({email, options:{emailRedirectTo: window.location.href}});
+ const {error} = await sb.auth.signInWithOtp({email, options:{emailRedirectTo: location.origin+location.pathname}});
  msg.textContent = error ? "Erreur : "+error.message : "Email envoyé ! Clique sur le lien, ou saisis ci-dessous le code reçu (utile dans l'app installée sur iPhone).";
  if(!error) document.getElementById("codeBox").style.display="block";
  if(error) msg.classList.add("err");
@@ -272,7 +279,7 @@ function relTime(iso){
  return j===1?"Hier":`Il y a ${j} jours`;
 }
 async function loadNotifications(){
- const {data} = await sb.from("notifications").select("id,message,lu,created_at").eq("joueur_id", MY_ID).order("created_at",{ascending:false}).limit(30);
+ const {data} = await sb.from("notifications").select("id,match_id,message,lu,created_at").eq("joueur_id", MY_ID).order("created_at",{ascending:false}).limit(30);
  notifs = data||[];
 }
 async function supprimerNotif(id){
@@ -312,16 +319,13 @@ async function ajouterJoueur(nom, email, role){
  if(error){ alert("Erreur : "+error.message); return; }
  await refreshEffectif(); await refreshClubStats(); render();
 }
-function retirerJoueur(id){
- if(id===MY_ID){ alert("Tu ne peux pas te retirer toi-même."); return; }
- const j = effectif.find(e=>e.id===id); if(!j) return;
- const qui = j.role==="manager" ? "ce manager" : "ce joueur";
+function confirmerAction({titre, texte, caseLabel, bouton, danger, onOk}){
  const bg = document.createElement("div"); bg.className = "modalbg";
  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
-  <h4>Supprimer ${esc(j.nom)} ?</h4>
-  <p>Êtes-vous sûr de vouloir supprimer ${qui} du club ? Il n'aura plus accès à l'application. Son historique (présences, stats, votes) est conservé.</p>
-  <label class="chk" style="display:flex;gap:10px;align-items:flex-start;margin:14px 0"><input type="checkbox" id="mdlChk" style="accent-color:var(--red)"><span>Oui, je confirme la suppression de <b>${esc(j.nom)}</b></span></label>
-  <div class="mbtns"><button class="mbtn" id="mdlCancel">Annuler</button><button class="mbtn danger" id="mdlOk" disabled>Supprimer</button></div>
+  <h4>${titre}</h4>
+  <p>${texte}</p>
+  <label class="chk" style="display:flex;gap:10px;align-items:flex-start;margin:14px 0"><input type="checkbox" id="mdlChk" style="accent-color:var(--${danger?"red":"green"})"><span>${caseLabel}</span></label>
+  <div class="mbtns"><button class="mbtn" id="mdlCancel">Annuler</button><button class="mbtn ${danger?"danger":"primary"}" id="mdlOk" disabled>${bouton}</button></div>
  </div>`;
  document.body.appendChild(bg);
  const close = ()=>bg.remove();
@@ -329,20 +333,41 @@ function retirerJoueur(id){
  bg.querySelector("#mdlCancel").onclick = close;
  bg.onclick = e=>{ if(e.target===bg) close(); };
  chk.onchange = ()=>{ ok.disabled = !chk.checked; };
- ok.onclick = async ()=>{
-  if(!chk.checked) return;
-  ok.disabled = true;
-  const r = await sb.from("joueurs").update({actif:false}).eq("id", id).select("id");
-  close();
-  if(r.error || !r.data || !r.data.length){ alert("Suppression impossible : "+(r.error?r.error.message:"droits insuffisants (SQL add_gestion_effectif.sql exécuté ?)")); return; }
-  await refreshEffectif(); await refreshClubStats(); render();
- };
+ ok.onclick = async ()=>{ if(!chk.checked) return; ok.disabled = true; close(); await onOk(); };
 }
-async function basculerRole(id, roleActuel){
- const nouveau = roleActuel==="manager" ? "joueur" : "manager";
- const {error} = await sb.from("joueurs").update({role:nouveau}).eq("id", id);
- if(error){ alert("Erreur : "+error.message); return; }
- await refreshEffectif(); render();
+function retirerJoueur(id){
+ if(id===MY_ID){ alert("Tu ne peux pas te retirer toi-même."); return; }
+ const j = effectif.find(e=>e.id===id); if(!j) return;
+ const nom = esc(j.nom), qui = j.role==="manager" ? "ce manager" : "ce joueur";
+ confirmerAction({
+  titre: `Supprimer ${nom} ?`,
+  texte: `Êtes-vous sûr de vouloir supprimer ${qui} du club ? Il n'aura plus accès à l'application. Son historique (présences, stats, votes) est conservé.`,
+  caseLabel: `Oui, je confirme la suppression de <b>${nom}</b>`,
+  bouton: "Supprimer", danger: true,
+  onOk: async ()=>{
+   const r = await sb.from("joueurs").update({actif:false}).eq("id", id).select("id");
+   if(r.error || !r.data || !r.data.length){ alert("Suppression impossible : "+(r.error?r.error.message:"droits insuffisants")); return; }
+   await refreshEffectif(); await refreshClubStats(); render();
+  }
+ });
+}
+function basculerRole(id){
+ if(id===MY_ID){ alert("Tu ne peux pas modifier ton propre rôle."); return; }
+ const j = effectif.find(e=>e.id===id); if(!j) return;
+ const promo = j.role!=="manager", vers = promo ? "manager" : "joueur", nom = esc(j.nom);
+ confirmerAction({
+  titre: promo ? `Passer ${nom} manager ?` : `Retirer les droits de manager à ${nom} ?`,
+  texte: promo
+   ? "Un manager peut modifier la présence de tous les joueurs, valider les feuilles de match, saisir les statistiques et gérer l'effectif (ajouts, retraits, rôles)."
+   : `${nom} ne pourra plus modifier les présences des autres, valider les feuilles de match, saisir les statistiques ni gérer l'effectif.`,
+  caseLabel: promo ? `Oui, je confirme : <b>${nom}</b> devient manager` : `Oui, je confirme : <b>${nom}</b> redevient simple joueur`,
+  bouton: promo ? "Passer manager" : "Retirer les droits", danger: !promo,
+  onOk: async ()=>{
+   const r = await sb.from("joueurs").update({role:vers}).eq("id", id).select("id");
+   if(r.error || !r.data || !r.data.length){ alert("Changement impossible : "+(r.error?r.error.message:"droits insuffisants")); return; }
+   await refreshEffectif(); render();
+  }
+ });
 }
 
 async function setPresenceManager(m, joueurId, statut){
@@ -627,14 +652,30 @@ function render(){
   if(nm) nm.scrollIntoView({block:"center"});
  }
 }
+async function openMatch(m){
+ if(!m) return;
+ currentTab = "cal"; currentMatch = m; render();
+ try{ window.scrollTo(0,0); }catch(_){}
+ if(m.dbId){
+  if(m.status==="upcoming") await loadPresences(m); else await loadPastMatchData(m);
+  if(currentMatch===m) render();
+ }
+}
+function openMatchById(dbId){
+ const m = matches.find(x=>x.dbId===dbId);
+ if(m) openMatch(m); else alert("Ce match n'est plus disponible dans le calendrier.");
+}
+function handleSwMessage(ev){
+ if(!ev.data || ev.data.type!=="navigate") return;
+ const id = new URL(ev.data.url, location.href).searchParams.get("match");
+ if(!id) return;
+ if(!ME){ pendingMatch = id; return; }
+ openMatchById(id);
+}
+if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", handleSwMessage);
+
 function bind(){
- document.querySelectorAll("[data-open]").forEach(el=>el.onclick=async ()=>{
-  currentMatch=matches.find(m=>m.id==el.dataset.open); render();
-  if(currentMatch && currentMatch.dbId){
-   if(currentMatch.status==="upcoming" && !currentMatch.presenceReal){ await loadPresences(currentMatch); render(); }
-   if(currentMatch.status==="past" && !currentMatch.playersOk){ await loadPastMatchData(currentMatch); render(); }
-  }
- });
+ document.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>openMatch(matches.find(m=>m.id==el.dataset.open)));
  const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>{currentMatch=null; render();};
  document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
  document.querySelectorAll("[data-mgr-pres]").forEach(b=>b.onclick=()=>setPresenceManager(currentMatch, b.dataset.mgrPres, b.dataset.mgrVal));
@@ -650,7 +691,7 @@ function bind(){
   const id=el.dataset.statGardien; currentMatch.statsDraft[id].gardien=!currentMatch.statsDraft[id].gardien; render();
  });
  const ss=document.querySelector("[data-save-stats]"); if(ss) ss.onclick=()=>enregistrerStats(currentMatch);
- document.querySelectorAll("[data-toggle-role]").forEach(el=>el.onclick=()=>basculerRole(el.dataset.toggleRole, el.dataset.roleActuel));
+ document.querySelectorAll("[data-toggle-role]").forEach(el=>el.onclick=()=>basculerRole(el.dataset.toggleRole));
  document.querySelectorAll("[data-remove-joueur]").forEach(el=>el.onclick=()=>retirerJoueur(el.dataset.removeJoueur));
  const rJ=document.getElementById("rJoueur"), rM=document.getElementById("rManager");
  if(rJ&&rM){ rJ.onclick=()=>{rJ.classList.add("yesOn"); rM.classList.remove("yesOn");}; rM.onclick=()=>{rM.classList.add("yesOn"); rJ.classList.remove("yesOn");}; }
@@ -731,11 +772,15 @@ async function renderPushZone(){
 }
 function openNotif(){
  document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
- ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"><div>${n.message}<div class="t">${relTime(n.created_at)}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
+ ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"${n.match_id?` data-notif-match="${n.match_id}" style="cursor:pointer"`:''}><div>${esc(n.message)}<div class="t">${relTime(n.created_at)}${n.match_id?' · Voir le match ›':''}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
   :'<div class="nitem">Aucune notification pour l\'instant.</div>'}`;
  document.getElementById("notifOv").classList.add("open");
  document.getElementById("ncl").onclick=()=>document.getElementById("notifOv").classList.remove("open");
- document.querySelectorAll("[data-del-notif]").forEach(el=>el.onclick=()=>supprimerNotif(el.dataset.delNotif));
+ document.querySelectorAll("[data-notif-match]").forEach(el=>el.onclick=()=>{
+  document.getElementById("notifOv").classList.remove("open");
+  openMatchById(el.dataset.notifMatch);
+ });
+ document.querySelectorAll("[data-del-notif]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); supprimerNotif(el.dataset.delNotif); });
  const idsNonLues = notifs.filter(n=>!n.lu).map(n=>n.id);
  if(idsNonLues.length){
   sb.from("notifications").update({lu:true}).in("id", idsNonLues).then(()=>{
