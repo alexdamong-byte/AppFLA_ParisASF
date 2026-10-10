@@ -36,7 +36,7 @@ def patch(path, payload):
     if r.status_code >= 300:
         print(f"⚠️  Erreur PATCH {path} : {r.status_code} {r.text[:300]}")
 
-def envoyer_push(joueur_id, message):
+def envoyer_push(joueur_id, message, match_id=None):
     """Envoie un push à tous les appareils abonnés du joueur. Silencieux si non configuré."""
     priv = (os.environ.get("VAPID_PRIVATE_KEY") or "").strip()
     sujet = (os.environ.get("VAPID_SUBJECT") or "").strip()
@@ -51,7 +51,7 @@ def envoyer_push(joueur_id, message):
         try:
             webpush(
                 subscription_info={"endpoint": s["endpoint"], "keys": {"p256dh": s["p256dh"], "auth": s["auth_key"]}},
-                data=json.dumps({"title": "Paris ASF", "body": message}),
+                data=json.dumps({"title": "Paris ASF", "body": message, "url": f"./?match={match_id}" if match_id else "./"}),
                 vapid_private_key=priv, vapid_claims={"sub": sujet}, ttl=86400,
             )
         except WebPushException as e:
@@ -68,7 +68,7 @@ def notifier(joueur_id, match_id, type_, message):
     if existe:
         return False
     post("notifications", {"joueur_id": joueur_id, "match_id": match_id, "type": type_, "message": message, "lu": False})
-    envoyer_push(joueur_id, message)
+    envoyer_push(joueur_id, message, match_id)
     return True
 
 def test_push():
