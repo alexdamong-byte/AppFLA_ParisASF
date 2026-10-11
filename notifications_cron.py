@@ -7,6 +7,7 @@ Lancé quotidiennement par GitHub Actions avec la clé service_role (contourne l
 """
 import os, re, json, requests
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 
 URL = (os.environ.get("SUPABASE_URL") or "").strip().strip('"').rstrip("/")
 KEY = (os.environ.get("SUPABASE_SERVICE_KEY") or "").strip().strip('"')
@@ -107,17 +108,27 @@ def gerer_presence_a_venir():
                 notifier(j["id"], m["id"], "relance_presence",
                          f"Dispo pour le match du {date_match.strftime('%d/%m à %Hh%M')} ? Réponds dans l'app.")
 
+def paris_txt(dt):
+    return dt.astimezone(ZoneInfo("Europe/Paris")).strftime("%d/%m à %Hh%M")
+
 def gerer_vote_disponible():
+    """Prévient les joueurs de la FEUILLE DE MATCH (et eux seuls) que le vote est ouvert.
+    Le vote s'ouvre à la validation de la feuille et des stats (matchs.vote_ouvert_le) et dure 48 h,
+    ou moins si tous ont déjà voté. Personne n'est prévenu après la clôture, ni s'il a déjà voté."""
     now = datetime.now(timezone.utc)
-    matchs = get("matchs", "?statut=eq.termine&feuille_validee=eq.true&stats_remplies=eq.true&select=id,date_heure")
-    for m in matchs:
-        date_match = parse_ts(m["date_heure"])
-        if (now - date_match) < timedelta(hours=2):
+    for m in get("matchs", "?vote_ouvert_le=not.is.null&select=id,vote_ouvert_le"):
+        ferme = parse_ts(m["vote_ouvert_le"]) + timedelta(hours=48)
+        if now >= ferme:
             continue
-        presents = get("presences", f"?match_id=eq.{m['id']}&a_reellement_joue=eq.true&select=joueur_id")
-        for p in presents:
-            notifier(p["joueur_id"], m["id"], "vote_disponible",
-                     "Le vote pour l'homme du match est ouvert — à toi de voter !")
+        electeurs = [p["joueur_id"] for p in get("presences", f"?match_id=eq.{m['id']}&a_reellement_joue=eq.true&select=joueur_id")]
+        deja_vote = {v["votant_id"] for v in get("votes_homme_du_match", f"?match_id=eq.{m['id']}&select=votant_id")}
+        if electeurs and all(j in deja_vote for j in electeurs):
+            continue  # vote clos : tous ont voté
+        for jid in electeurs:
+            if jid in deja_vote:
+                continue
+            notifier(jid, m["id"], "vote_disponible",
+                     f"Le vote pour l'homme du match est ouvert jusqu'au {paris_txt(ferme)} — à toi de voter !")
 
 if __name__ == "__main__":
     if (os.environ.get("PUSH_TEST") or "").lower() == "true":
