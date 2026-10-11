@@ -64,6 +64,17 @@
     "statut": "upcoming"
   },
   {
+    "competition": "Coupe",
+    "competition_nom": "COUPE A 7 SEMAINE CHALLENGE — Cadrage",
+    "journee": null,
+    "domicile": "PARIS ASF",
+    "exterieur": "FC CROCRO",
+    "date": "2026-10-26T19:45:00",
+    "venue": "Stade Max Roussié",
+    "score": null,
+    "statut": "upcoming"
+  },
+  {
     "competition": "Championnat",
     "competition_nom": "Foot à 7 - Semaine - 4ème division A · Journée 3 · Aller",
     "journee": 3,
