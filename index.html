@@ -216,11 +216,9 @@ async function loadJoueurEtDemarre(session){
  document.getElementById("loginScreen").style.display="none";
  document.getElementById("app").style.display="block";
  render();
- if(pendingMatch){
-  const id = pendingMatch; pendingMatch = null;
-  try{ history.replaceState(null, "", location.pathname); }catch(_){}
-  openMatchById(id);
- }
+ if(pendingMatch){ try{ history.replaceState(null, "", location.pathname); }catch(_){} }
+ navReplace();
+ if(pendingMatch){ const id = pendingMatch; pendingMatch = null; openMatchById(id); }
 }
 document.getElementById("loginBtn").onclick = async ()=>{
  const email = document.getElementById("loginEmail").value.trim();
@@ -328,7 +326,8 @@ function confirmerAction({titre, texte, caseLabel, bouton, danger, onOk}){
   <div class="mbtns"><button class="mbtn" id="mdlCancel">Annuler</button><button class="mbtn ${danger?"danger":"primary"}" id="mdlOk" disabled>${bouton}</button></div>
  </div>`;
  document.body.appendChild(bg);
- const close = ()=>bg.remove();
+ let pushed = navPush();
+ const close = ()=>{ bg.remove(); if(pushed){ pushed = false; history.back(); } };
  const chk = bg.querySelector("#mdlChk"), ok = bg.querySelector("#mdlOk");
  bg.querySelector("#mdlCancel").onclick = close;
  bg.onclick = e=>{ if(e.target===bg) close(); };
@@ -403,26 +402,53 @@ async function loadPastMatchData(m){
  }
  m.scoreOfficiel = m.home==="PARIS ASF" ? (m.score?m.score[0]:null) : (m.score?m.score[1]:null);
 
- const voteActif = m.feuilleValidee && m.statsRemplies;
+ // État du vote calculé par le serveur : ouvert à la validation, clos 48 h plus tard ou dès que tous ont voté
+ const rv = await sb.rpc("etat_vote", {p_match:m.dbId});
+ m.voteErr = rv.error ? rv.error.message : null;
+ const ev = Array.isArray(rv.data) ? rv.data[0] : rv.data;
+ m.vote = ev ? {ouvert:!!ev.ouvert, clos:!!ev.clos, fermeLe:ev.ferme_le||null} : {ouvert:false, clos:false, fermeLe:null};
  const {data:votes} = await sb.from("votes_homme_du_match").select("votant_id,candidat_id").eq("match_id", m.dbId);
  m.myVote = (votes||[]).find(v=>v.votant_id===MY_ID)?.candidat_id || null;
- m.voteCounts = {}; (votes||[]).forEach(v=>{m.voteCounts[v.candidat_id]=(m.voteCounts[v.candidat_id]||0)+1;});
- const votantIds = new Set((votes||[]).map(v=>v.votant_id));
- const tousOntVote = voteActif && m.playersOk.length>0 && m.playersOk.every(j=>votantIds.has(j.id));
- m.voteActif = voteActif;
- m.voteVisible = tousOntVote || (voteActif && (Date.now()-m.dt.getTime()) >= 48*3600*1000);
+ m.voteCounts = {};
+ if(m.vote.clos) (votes||[]).forEach(v=>{ m.voteCounts[v.candidat_id]=(m.voteCounts[v.candidat_id]||0)+1; });
+ m.voteVisible = m.vote.clos;
+}
+function totalStat(m, champ, sauf){
+ return (m.playersOk||[]).reduce((a,j)=> a + (j.id===sauf ? 0 : (parseInt((m.statsDraft[j.id]||{})[champ])||0)), 0);
+}
+function majStatsInfo(avert){
+ const m = currentMatch, z = document.getElementById("statsInfo"); if(!z || !m) return;
+ const N = m.scoreOfficiel;
+ z.innerHTML = esc(`Buts : ${totalStat(m,"buts")}/${N} · Passes décisives : ${totalStat(m,"pd")}/${N}`)
+  + (avert ? ` <span style="color:var(--red)">· ${esc(avert)}</span>` : "");
+ (m.playersOk||[]).forEach(j=>{
+  const b = document.querySelector(`[data-stat-buts="${j.id}"]`), d = document.querySelector(`[data-stat-pd="${j.id}"]`);
+  if(b) b.max = Math.max(0, N - totalStat(m,"buts",j.id));
+  if(d) d.max = Math.max(0, N - totalStat(m,"pd",j.id));
+ });
+}
+function onStatInput(el, champ, id){
+ const m = currentMatch; if(!m || !m.statsDraft[id]) return;
+ let v = el.value==="" ? 0 : Math.max(0, parseInt(el.value,10)||0), avert = "";
+ if(m.scoreOfficiel!==null){
+  const max = Math.max(0, m.scoreOfficiel - totalStat(m, champ, id));
+  if(v>max){
+   v = max; el.value = String(max);
+   avert = `Maximum ${max} : le total des ${champ==="buts"?"buts":"passes décisives"} ne peut pas dépasser le score de l'équipe (${m.scoreOfficiel}).`;
+  }
+ }
+ if(el.value!=="" && String(v)!==el.value) el.value = String(v);
+ m.statsDraft[id][champ] = el.value==="" ? "" : v;
+ majStatsInfo(avert);
 }
 async function enregistrerStats(m){
- const total = Object.values(m.statsDraft).reduce((a,s)=>a+(parseInt(s.buts)||0),0);
- if(m.scoreOfficiel!==null && total>m.scoreOfficiel){
-  alert(`Le total des buts saisis (${total}) dépasse le score officiel de l'équipe (${m.scoreOfficiel}).`);
-  return;
- }
- const writes = Object.entries(m.statsDraft).map(([joueur_id, s])=>({
-  match_id:m.dbId, joueur_id, buts:parseInt(s.buts)||0, passes_decisives:parseInt(s.pd)||0, gardien:!!s.gardien
- }));
+ const N = m.scoreOfficiel, tb = totalStat(m,"buts"), tp = totalStat(m,"pd");
+ if(N!==null && tb>N){ alert(`Le total des buts saisis (${tb}) dépasse le score de l'équipe (${N}).`); return; }
+ if(N!==null && tp>N){ alert(`Le total des passes décisives saisies (${tp}) dépasse le score de l'équipe (${N}).`); return; }
+ const writes = m.playersOk.map(j=>{ const st = m.statsDraft[j.id]||{};
+  return {match_id:m.dbId, joueur_id:j.id, buts:parseInt(st.buts)||0, passes_decisives:parseInt(st.pd)||0, gardien:!!st.gardien}; });
  const {error} = await sb.from("stats_joueurs").upsert(writes, {onConflict:"match_id,joueur_id"});
- if(error){ alert("Erreur à l'enregistrement : "+error.message); return; }
+ if(error){ alert("Enregistrement impossible : "+error.message); return; }
  const r2 = await sb.from("matchs").update({stats_remplies:true}).eq("id", m.dbId).select("id");
  if(r2.error || !r2.data || !r2.data.length){ alert("Enregistrement impossible : "+(r2.error?r2.error.message:"droits insuffisants (SQL add_stats_manager.sql exécuté ?)")); return; }
  m.statsRemplies = true;
@@ -471,7 +497,7 @@ async function refreshClubStats(){
  const [r1,r2,r3,r4] = await Promise.all([
   ids.length ? sb.from("presences").select("match_id,joueur_id").in("match_id", ids).eq("a_reellement_joue", true) : {data:[]},
   ids.length ? sb.from("stats_joueurs").select("match_id,joueur_id,buts,passes_decisives,gardien").in("match_id", ids) : {data:[]},
-  ids.length ? sb.from("votes_homme_du_match").select("match_id,votant_id,candidat_id").in("match_id", ids) : {data:[]},
+  ids.length ? sb.rpc("hommes_du_match", {p_matchs: ids}) : {data:[]},
   sb.from("joueurs").select("id,nom,actif"),
  ]);
  const err = [r1,r2,r3,r4].find(r=>r.error);
@@ -491,19 +517,8 @@ async function refreshClubStats(){
   const m = byId[st.match_id]; if(!m || !m.statsRemplies) return;
   const r = row(st.joueur_id); r.b += st.buts||0; r.pd += st.passes_decisives||0; if(st.gardien) r.gb++;
  });
- // HM : uniquement si le vote est clos (tous les joueurs ont voté, ou 48h après le match)
- const votesParMatch = {};
- (r3.data||[]).forEach(v=>{ (votesParMatch[v.match_id] = votesParMatch[v.match_id] || []).push(v); });
- Object.keys(parMatch).forEach(mid=>{
-  const m = byId[mid]; if(!m.statsRemplies) return;
-  const votes = votesParMatch[mid] || []; if(!votes.length) return;
-  const votants = new Set(votes.map(v=>v.votant_id));
-  const clos = parMatch[mid].every(id=>votants.has(id)) || (Date.now()-m.dt.getTime()) >= 48*3600*1000;
-  if(!clos) return;
-  const cnt = {}; votes.forEach(v=>{ cnt[v.candidat_id] = (cnt[v.candidat_id]||0)+1; });
-  const max = Math.max(...Object.values(cnt));
-  Object.keys(cnt).filter(id=>cnt[id]===max).forEach(id=>row(id).hm++);
- });
+ // HM : calculé par le serveur, uniquement pour les votes clos (égalité = plusieurs hommes du match)
+ (r3.data||[]).forEach(h=>{ row(h.joueur_id).hm += h.hm; });
  clubRows = (r4.data||[])
   .filter(j=>j.actif || (tot[j.id] && tot[j.id].j>0))
   .map(j=>Object.assign({id:j.id, n:j.nom}, tot[j.id] || {j:0,b:0,pd:0,gb:0,hm:0}))
@@ -594,35 +609,42 @@ function viewMatch(m){
    h+=`<div class="small" style="color:var(--muted)">En attente de la feuille de match par un manager.</div>`;
   } else if(!m.statsRemplies){
    h+=`<div class="small" style="color:var(--muted)">En attente de la saisie des stats par un manager.</div>`;
+  } else if(m.voteErr){
+   h+=`<div class="small" style="color:var(--red)">Vote indisponible : ${esc(m.voteErr)} (script correctifs_vote_stats.sql exécuté ?)</div>`;
   } else if(!m.playersOk || m.playersOk.length===0){
    h+=`<div class="small" style="color:var(--muted)">Aucun joueur retenu sur ce match.</div>`;
-  } else {
+  } else if(!(m.vote && m.vote.ouvert)){
+   h+=`<div class="small" style="color:var(--muted)">Le vote s'ouvrira dès que la feuille de match et les stats seront validées.</div>`;
+  } else if(!m.vote.clos){
    const jeSuisCandidat = m.playersOk.some(j=>j.id===MY_ID);
    if(jeSuisCandidat){
-    h+=m.playersOk.filter(j=>j.id!==MY_ID).map(j=>`<div class="voteopt"><span>${j.nom}</span><button data-vote="${j.id}" class="${m.myVote===j.id?'yesOn':''}" style="${m.myVote===j.id?'background:var(--green);color:#fff':''}">${m.myVote===j.id?'Voté ✓':'Voter'}</button></div>`).join("");
+    h+=`<div class="small" style="margin-bottom:6px">Vote ouvert : tu peux le modifier jusqu'à la clôture.</div>`;
+    h+=m.playersOk.filter(j=>j.id!==MY_ID).map(j=>`<div class="voteopt"><span>${esc(j.nom)}</span><button data-vote="${j.id}" class="${m.myVote===j.id?'yesOn':''}" style="${m.myVote===j.id?'background:var(--green);color:#fff':''}">${m.myVote===j.id?'Voté ✓':'Voter'}</button></div>`).join("");
    } else {
-    h+=`<div class="small" style="color:var(--muted)">Seuls les joueurs ayant participé peuvent voter.</div>`;
+    h+=`<div class="small" style="color:var(--muted)">Seuls les joueurs de la feuille de match peuvent voter.</div>`;
    }
-   if(m.voteVisible){
-    const top=Object.entries(m.voteCounts||{}).sort((a,b)=>b[1]-a[1]);
-    if(top.length){
-     const max=top[0][1]; const winners=top.filter(([_,v])=>v===max);
-     h+=`<div style="margin-top:10px">`+winners.map(([id,v])=>{const j=effectif.find(e=>e.id===id); return `<div class="winner"><div class="av">${initials(j?j.nom:'?')}</div><div><b>${j?j.nom:'?'}</b><br><i>${v} vote${v>1?'s':''}</i></div></div>`;}).join("<br>")+`</div>`;
-    } else { h+=`<div class="small" style="margin-top:8px;color:var(--muted)">Pas de vote → pas d'homme du match pour cette rencontre.</div>`; }
+   const ferme = m.vote.fermeLe ? "le "+new Date(m.vote.fermeLe).toLocaleString("fr-FR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).replace(":","h") : "dans 48 h";
+   h+=`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Résultats visibles à la clôture (${ferme}), ou dès que tous les joueurs de la feuille ont voté.</div>`;
+  } else {
+   const top = Object.entries(m.voteCounts||{}).sort((a,b)=>b[1]-a[1]);
+   if(top.length){
+    const max = top[0][1], winners = top.filter(([_,v])=>v===max);
+    h+=`<div class="small" style="margin-bottom:6px">Vote clos.</div>`+winners.map(([id,v])=>{ const j = effectif.find(e=>e.id===id), nom = j?j.nom:"Joueur retiré";
+     return `<div class="winner"><div class="av">${esc(initials(nom))}</div><div><b>${esc(nom)}</b><br><i>${v} vote${v>1?"s":""}</i></div></div>`; }).join("<br>");
    } else {
-    h+=`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Résultats visibles 48h après le match.</div>`;
+    h+=`<div class="small" style="color:var(--muted)">Vote clos : pas de vote → pas d'homme du match pour cette rencontre.</div>`;
    }
   }
   h+=`</div><h3 class="sect">Statistiques (${m.comp})</h3><div class="card" style="padding:8px">`;
   if(!m.playersOk || m.playersOk.length===0){
    h+=`<div class="small" style="color:var(--muted)">Pas encore de joueurs validés.</div>`;
   } else if(ROLE==="manager"){
-   h+=`${m.scoreOfficiel!==null?`<div class="small" style="margin-bottom:8px">Score officiel de l'équipe : <b>${m.scoreOfficiel}</b> — le total des buts saisis ne doit pas le dépasser.</div>`:''}
+   h+=`${m.scoreOfficiel!==null?`<div class="small" style="margin-bottom:4px">Score de Paris ASF : <b>${m.scoreOfficiel}</b>. Le total des buts et le total des passes décisives ne peuvent pas le dépasser.</div><div id="statsInfo" class="small" style="margin-bottom:8px;font-weight:700"></div>`:`<div class="small" style="margin-bottom:8px;color:var(--red)">Score officiel indisponible : contrôle impossible.</div>`}
    <table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
    ${m.playersOk.map(j=>{if(!m.statsDraft[j.id]) m.statsDraft[j.id]={buts:0,pd:0,gardien:false}; const s=m.statsDraft[j.id];
     return `<tr><td>${j.nom}</td>
-     <td><input type="number" min="0" value="${s.buts}" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
-     <td><input type="number" min="0" value="${s.pd}" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
+     <td><input type="number" min="0" value="${s.buts}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
+     <td><input type="number" min="0" value="${s.pd}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
      <td><span data-stat-gardien="${j.id}" style="cursor:pointer">${s.gardien?'✓':'—'}</span></td></tr>`;}).join("")}
    </table>
    <button class="votebtn" style="margin-top:10px" data-save-stats="1">Enregistrer les stats</button>`;
@@ -648,22 +670,55 @@ function render(){
  badge.style.display = unread?"flex":"none"; badge.textContent = unread;
  bind();
  if(currentTab==="cal" && !currentMatch){
-  const nm = document.getElementById("nextMatch");
-  if(nm) nm.scrollIntoView({block:"center"});
+  if(savedScroll!==null){ try{ window.scrollTo(0, savedScroll); }catch(_){} savedScroll = null; }
+  else { const nm = document.getElementById("nextMatch"); if(nm) nm.scrollIntoView({block:"center"}); }
  }
 }
-async function openMatch(m){
+// Chaque « couche » (fiche match, panneau, fenêtre) ajoute une entrée à l'historique du navigateur :
+// le bouton retour d'Android la ferme au lieu de quitter l'application.
+let navDepth = 0, overlay = null, pendingTab = null, savedScroll = null;
+const uiState = ()=>({d:navDepth, tab:currentTab, match:currentMatch?currentMatch.id:null, overlay,
+  modal: !!document.querySelector(".modalbg") || document.getElementById("sheet").classList.contains("open")});
+function navPush(){ navDepth++; try{ history.pushState(uiState(), ""); return true; }catch(_){ navDepth--; return false; } }
+function navReplace(){ try{ history.replaceState(uiState(), ""); }catch(_){} }
+function navBack(direct){ if(navDepth>0) history.back(); else direct(); }
+function closeSheet(){ document.getElementById("sheet").classList.remove("open"); document.getElementById("ov2").classList.remove("open"); }
+window.addEventListener("popstate", e=>{
+ if(!ME) return;
+ const st = e.state || {d:0, tab:"cal", match:null, overlay:null, modal:false};
+ navDepth = st.d || 0;
+ if(!st.modal){ document.querySelectorAll(".modalbg").forEach(x=>x.remove()); closeSheet(); }
+ document.getElementById("notifOv").classList.remove("open"); document.getElementById("profOv").classList.remove("open"); overlay = null;
+ currentTab = st.tab || "cal";
+ currentMatch = st.match ? (matches.find(m=>m.id===st.match) || null) : null;
+ render();
+ if(pendingTab){ const t = pendingTab; pendingTab = null; if(t!=="cal") goTab(t); }
+});
+function goTab(t){
+ savedScroll = null;
+ if(currentMatch){
+  if(navDepth>0){ pendingTab = t; history.go(-navDepth); return; }   // retour à l'écran de base, puis onglet demandé
+  currentMatch = null;
+ }
+ if(t===currentTab){ render(); }
+ else if(t==="cal"){ if(navDepth>0){ history.back(); return; } currentTab = "cal"; render(); }
+ else { currentTab = t; if(navDepth===0) navPush(); else navReplace(); render(); }
+ if(currentTab==="club") refreshClubStats().then(()=>{ if(currentTab==="club" && !currentMatch) render(); });
+}
+async function openMatch(m, {replace=false}={}){
  if(!m) return;
- currentTab = "cal"; currentMatch = m; render();
+ if(!currentMatch && currentTab==="cal") savedScroll = window.scrollY;   // retrouver sa place dans la liste au retour
+ currentMatch = m; render();
+ if(replace) navReplace(); else navPush();
  try{ window.scrollTo(0,0); }catch(_){}
  if(m.dbId){
   if(m.status==="upcoming") await loadPresences(m); else await loadPastMatchData(m);
   if(currentMatch===m) render();
  }
 }
-function openMatchById(dbId){
+function openMatchById(dbId, opts){
  const m = matches.find(x=>x.dbId===dbId);
- if(m) openMatch(m); else alert("Ce match n'est plus disponible dans le calendrier.");
+ if(m) openMatch(m, opts); else alert("Ce match n'est plus disponible dans le calendrier.");
 }
 function handleSwMessage(ev){
  if(!ev.data || ev.data.type!=="navigate") return;
@@ -676,7 +731,7 @@ if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("messa
 
 function bind(){
  document.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>openMatch(matches.find(m=>m.id==el.dataset.open)));
- const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>{currentMatch=null; render();};
+ const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>navBack(()=>{ currentMatch=null; render(); });
  document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
  document.querySelectorAll("[data-mgr-pres]").forEach(b=>b.onclick=()=>setPresenceManager(currentMatch, b.dataset.mgrPres, b.dataset.mgrVal));
  document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
@@ -685,8 +740,9 @@ function bind(){
   render();
  });
  const vf=document.querySelector("[data-valider-feuille]"); if(vf) vf.onclick=()=>validerFeuille(currentMatch);
- document.querySelectorAll("[data-stat-buts]").forEach(el=>el.oninput=()=>{currentMatch.statsDraft[el.dataset.statButs].buts=el.value;});
- document.querySelectorAll("[data-stat-pd]").forEach(el=>el.oninput=()=>{currentMatch.statsDraft[el.dataset.statPd].pd=el.value;});
+ document.querySelectorAll("[data-stat-buts]").forEach(el=>el.oninput=()=>onStatInput(el,"buts",el.dataset.statButs));
+ document.querySelectorAll("[data-stat-pd]").forEach(el=>el.oninput=()=>onStatInput(el,"pd",el.dataset.statPd));
+ majStatsInfo("");
  document.querySelectorAll("[data-stat-gardien]").forEach(el=>el.onclick=()=>{
   const id=el.dataset.statGardien; currentMatch.statsDraft[id].gardien=!currentMatch.statsDraft[id].gardien; render();
  });
@@ -709,7 +765,8 @@ function openSheet(opts){
  const items=opts.map(x=>typeof x==="string"?{label:x}:x);
  s.innerHTML=items.map(x=>`<div class="opt">${x.label}</div>`).join("")+`<div class="opt">Annuler</div>`;
  s.classList.add("open"); o.classList.add("open");
- const close=()=>{s.classList.remove("open"); o.classList.remove("open");};
+ let pushed = navPush();
+ const close=()=>{ closeSheet(); if(pushed){ pushed = false; history.back(); } };
  o.onclick=close;
  s.querySelectorAll(".opt").forEach((el,i)=>el.onclick=()=>{ close(); if(items[i]&&items[i].run) items[i].run(); });
 }
@@ -775,10 +832,11 @@ function openNotif(){
  ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"${n.match_id?` data-notif-match="${n.match_id}" style="cursor:pointer"`:''}><div>${esc(n.message)}<div class="t">${relTime(n.created_at)}${n.match_id?' · Voir le match ›':''}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
   :'<div class="nitem">Aucune notification pour l\'instant.</div>'}`;
  document.getElementById("notifOv").classList.add("open");
- document.getElementById("ncl").onclick=()=>document.getElementById("notifOv").classList.remove("open");
+ if(overlay!=="notif"){ overlay = "notif"; navPush(); }
+ document.getElementById("ncl").onclick=()=>navBack(()=>{ document.getElementById("notifOv").classList.remove("open"); overlay = null; });
  document.querySelectorAll("[data-notif-match]").forEach(el=>el.onclick=()=>{
-  document.getElementById("notifOv").classList.remove("open");
-  openMatchById(el.dataset.notifMatch);
+  document.getElementById("notifOv").classList.remove("open"); overlay = null; navReplace();
+  openMatchById(el.dataset.notifMatch, {replace:true});
  });
  document.querySelectorAll("[data-del-notif]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); supprimerNotif(el.dataset.delNotif); });
  const idsNonLues = notifs.filter(n=>!n.lu).map(n=>n.id);
@@ -802,12 +860,13 @@ function openProfil(){
   <div class="deco"><a href="#" id="logoutLink">Se déconnecter</a></div>
  </div>`;
  document.getElementById("profOv").classList.add("open");
+ if(overlay!=="profil"){ overlay = "profil"; navPush(); }
  renderPushZone();
  document.querySelectorAll("[data-theme-set]").forEach(b=>b.onclick=()=>{
   setTheme(b.dataset.themeSet);
   document.querySelectorAll("[data-theme-set]").forEach(x=>x.classList.toggle("on", x===b));
  });
- document.getElementById("pcl").onclick=()=>document.getElementById("profOv").classList.remove("open");
+ document.getElementById("pcl").onclick=()=>navBack(()=>{ document.getElementById("profOv").classList.remove("open"); overlay = null; });
  document.getElementById("logoutLink").onclick=async (e)=>{e.preventDefault(); await sb.auth.signOut(); location.reload();};
 }
 document.getElementById("bellBtn").onclick=openNotif;
@@ -815,10 +874,7 @@ document.getElementById("avatarBtn").onclick=openProfil;
 function applyTheme(t){ theme=t; document.documentElement.setAttribute("data-theme", t==="dark"?"dark":""); }
 function setTheme(t){ applyTheme(t); try{ localStorage.setItem("parisasf_theme", t); }catch(_){} }
 try{ applyTheme(localStorage.getItem("parisasf_theme")==="dark"?"dark":"light"); }catch(_){}
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>{
- currentTab=b.dataset.tab; currentMatch=null; render();
- if(currentTab==="club") refreshClubStats().then(()=>{ if(currentTab==="club" && !currentMatch) render(); });
-});
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
 </script>
 </body>
 </html>
