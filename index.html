@@ -417,14 +417,14 @@ function totalStat(m, champ, sauf){
  return (m.playersOk||[]).reduce((a,j)=> a + (j.id===sauf ? 0 : (parseInt((m.statsDraft[j.id]||{})[champ])||0)), 0);
 }
 function majStatsInfo(avert){
- const m = currentMatch, z = document.getElementById("statsInfo"); if(!z || !m) return;
- const N = m.scoreOfficiel;
- z.innerHTML = esc(`Buts : ${totalStat(m,"buts")}/${N} · Passes décisives : ${totalStat(m,"pd")}/${N}`)
-  + (avert ? ` <span style="color:var(--red)">· ${esc(avert)}</span>` : "");
+ const m = currentMatch; if(!m) return;
+ const z = document.getElementById("statsInfo");
+ if(z){ z.textContent = avert || ""; z.style.display = avert ? "block" : "none"; }   // visible seulement quand une saisie est refusée
+ const N = m.scoreOfficiel; if(N===null) return;
  (m.playersOk||[]).forEach(j=>{
-  const b = document.querySelector(`[data-stat-buts="${j.id}"]`), d = document.querySelector(`[data-stat-pd="${j.id}"]`);
-  if(b) b.max = Math.max(0, N - totalStat(m,"buts",j.id));
-  if(d) d.max = Math.max(0, N - totalStat(m,"pd",j.id));
+  const bt = document.querySelector(`[data-stat-buts="${j.id}"]`), pd = document.querySelector(`[data-stat-pd="${j.id}"]`);
+  if(bt) bt.max = Math.max(0, N - totalStat(m,"buts",j.id));
+  if(pd) pd.max = Math.max(0, N - totalStat(m,"pd",j.id));
  });
 }
 function onStatInput(el, champ, id){
@@ -639,7 +639,7 @@ function viewMatch(m){
   if(!m.playersOk || m.playersOk.length===0){
    h+=`<div class="small" style="color:var(--muted)">Pas encore de joueurs validés.</div>`;
   } else if(ROLE==="manager"){
-   h+=`${m.scoreOfficiel!==null?`<div class="small" style="margin-bottom:4px">Score de Paris ASF : <b>${m.scoreOfficiel}</b>. Le total des buts et le total des passes décisives ne peuvent pas le dépasser.</div><div id="statsInfo" class="small" style="margin-bottom:8px;font-weight:700"></div>`:`<div class="small" style="margin-bottom:8px;color:var(--red)">Score officiel indisponible : contrôle impossible.</div>`}
+   h+=`${m.scoreOfficiel!==null?`<div id="statsInfo" class="small" style="display:none;margin-bottom:8px;font-weight:700;color:var(--red)"></div>`:`<div class="small" style="margin-bottom:8px;color:var(--red)">Score officiel indisponible : contrôle impossible.</div>`}
    <table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
    ${m.playersOk.map(j=>{if(!m.statsDraft[j.id]) m.statsDraft[j.id]={buts:0,pd:0,gardien:false}; const s=m.statsDraft[j.id];
     return `<tr><td>${j.nom}</td>
