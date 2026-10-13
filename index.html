@@ -550,7 +550,7 @@ function viewClub(){
  const jEquipe = matches.filter(m=>m.status==="past").length;
  const rows=clubRows||[]; const tot={j:jEquipe,b:rows.reduce((a,c)=>a+c.b,0),pd:rows.reduce((a,c)=>a+c.pd,0)};
  return `<h2 class="title">CLUB</h2>
- <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours · championnat + Coupe</div><div class="sheet-card" style="padding:6px 8px"><table><tr><th>Joueurs</th><th>J</th><th>B</th><th>PD</th><th>GB</th><th>HM</th></tr>
+ <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours (Championnat + Coupe)</div><div class="sheet-card" style="padding:6px 8px"><table><tr><th>Joueurs</th><th>J</th><th>B</th><th>PD</th><th>GB</th><th>HM</th></tr>
  ${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
   :clubRows===null?'<tr><td colspan="6" style="text-align:center;color:var(--muted)">Chargement des statistiques…</td></tr>'
   :rows.map(p=>`<tr><td>${esc(p.n)}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
