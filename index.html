@@ -211,7 +211,24 @@ async function loadJoueurEtDemarre(session){
  const {data: tousJoueurs} = await sb.from("joueurs").select("id,nom,role").eq("actif", true);
  effectif = tousJoueurs||[];
  if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
+ 
+ // On charge d'abord le calendrier statique
  await loadDonneesFLA();
+ 
+ // On récupère les présences réelles de l'utilisateur connecté de manière sécurisée
+ try {
+  const {data: presData} = await sb.from("presences").select("match_id,statut").eq("joueur_id", MY_ID);
+  if (presData && presData.length > 0) {
+   const myPresMap = {};
+   presData.forEach(p => { myPresMap[p.match_id] = p.statut; });
+   matches.forEach(m => {
+    if (m.dbId && myPresMap[m.dbId]) {
+     m.myPresence = myPresMap[m.dbId];
+    }
+   });
+  }
+ } catch(e) { console.error("Erreur de récupération des présences", e); }
+
  await loadNotifications();
  document.getElementById("loginScreen").style.display="none";
  document.getElementById("app").style.display="block";
@@ -261,7 +278,7 @@ async function loadDonneesFLA(){
    return {id:`${idx}-${m.date}`, dbId: row?row.id:null, feuilleValidee: row?!!row.feuille_validee:false,
     statsRemplies: row?!!row.stats_remplies:false,
     comp:m.competition, dt:new Date(m.date), home:m.domicile, away:m.exterieur,
-    venue:cleanVenue(m.venue), status:m.statut, score:m.score, presence:{}};
+    venue:cleanVenue(m.venue), status:m.statut, score:m.score, myPresence: null};
   }).sort((a,b)=>a.dt-b.dt);
   ranking = cl.map(r=>({p:r.equipe, pt:r.points, j:r.joues, g:r.gagnes, n:r.nuls, l:r.perdus, me:r.equipe==="PARIS ASF"}))
    .sort((a,b)=>b.pt-a.pt);
@@ -303,6 +320,7 @@ async function setPresence(m, statut){
   {onConflict:"match_id,joueur_id"}
  );
  if(error){ alert("Enregistrement impossible : "+error.message); return; }
+ m.myPresence = statut; // Mise à jour locale de la couleur
  await loadPresences(m); render();
 }
 
@@ -322,8 +340,8 @@ function confirmerAction({titre, texte, caseLabel, bouton, danger, onOk}){
  bg.innerHTML = `<div class="modal" role="dialog" aria-modal="true">
   <h4>${titre}</h4>
   <p>${texte}</p>
-  <label class="chk" style="display:flex;gap:10px;align-items:flex-start;margin:14px 0"><input type="checkbox" id="mdlChk" style="accent-color:var(--${danger?"red":"green"})"><span>${caseLabel}</span></label>
-  <div class="mbtns"><button class="mbtn" id="mdlCancel">Annuler</button><button class="mbtn ${danger?"danger":"primary"}" id="mdlOk" disabled>${bouton}</button></div>
+  <label class="chk" style="display:flex;gap:10px;align-items:flex-start;margin:14px 0"><input type="checkbox" id="mdlChk" style="accent-color:var(--\${danger?"red":"green"})"><span>\${caseLabel}</span></label>
+  <div class="mbtns"><button class="mbtn" id="mdlCancel">Annuler</button><button class="mbtn \${danger?"danger":"primary"}" id="mdlOk" disabled>\${bouton}</button></div>
  </div>`;
  document.body.appendChild(bg);
  let pushed = navPush();
@@ -340,7 +358,7 @@ function retirerJoueur(id){
  const nom = esc(j.nom), qui = j.role==="manager" ? "ce manager" : "ce joueur";
  confirmerAction({
   titre: `Supprimer ${nom} ?`,
-  texte: `Êtes-vous sûr de vouloir supprimer ${qui} du club ? Il n'aura plus accès à l'application. Son historique (présences, stats, votes) est conservé.`,
+  texte: `Êtes-vous sûr de vouloir supprimer ${qui} du club ? Il n'aura plus accès à l'application. Son historique (présences, stats, votes) is conservé.`,
   caseLabel: `Oui, je confirme la suppression de <b>${nom}</b>`,
   bouton: "Supprimer", danger: true,
   onOk: async ()=>{
@@ -375,6 +393,9 @@ async function setPresenceManager(m, joueurId, statut){
   {onConflict:"match_id,joueur_id"}
  );
  if(error){ alert("Modification impossible : "+error.message); return; }
+ if(joueurId === MY_ID){
+  m.myPresence = statut; // Se met à jour si le manager vous change
+ }
  await loadPresences(m); render();
 }
 
@@ -470,15 +491,15 @@ async function voter(m, candidatId){
 }
 
 function matchRow(m, isNext){
- const st = m.status==="past"?"past":(m.presence[ME]==="yes"?"yes":m.presence[ME]==="no"?"no":"wait");
+ const st = m.status==="past"?"past":(m.myPresence==="oui"?"yes":m.myPresence==="non"?"no":"wait");
  const homeWin = !!m.score && m.score[0]>m.score[1], awayWin = !!m.score && m.score[1]>m.score[0];
- return `<div class="mrow" data-open="${m.id}"${isNext?' id="nextMatch"':''}>
-  <div class="dblock d-${st}"><b>${fmtDay(m.dt)}</b><span>${fmtMonAbbr(m.dt)}</span></div>
+ return `<div class="mrow" data-open="\${m.id}"\${isNext?' id="nextMatch"':''}>
+  <div class="dblock d-\${st}"><b>\${fmtDay(m.dt)}</b><span>${fmtMonAbbr(m.dt)}</span></div>
   <div class="minfo">
    ${m.comp==="Coupe"?`<div class="comp">🏆 Coupe</div>`:''}
-   <div class="trow ${homeWin?'win':''}"><span>${m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
-   <div class="trow ${awayWin?'win':''}"><span>${m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
-   <div class="venue">${fmtTime(m.dt)} · ${m.venue}</div>
+   <div class="trow \${homeWin?'win':''}"><span>\${m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+   <div class="trow \${awayWin?'win':''}"><span>\${m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+   <div class="venue">\${fmtTime(m.dt)} · \${m.venue}</div>
   </div></div>`;
 }
 function viewCal(){
@@ -532,13 +553,13 @@ function viewClub(){
  ${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
   :clubRows===null?'<tr><td colspan="6" style="text-align:center;color:var(--muted)">Chargement des statistiques…</td></tr>'
   :rows.map(p=>`<tr><td>${esc(p.n)}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
- <tr class="tot"><td>PARIS ASF</td><td>${tot.j}</td><td>${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
+ <tr class="tot"><td>PARIS ASF</td><td>\${tot.j}</td><td>\${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
  </table></div>
  ${ROLE==='manager'?`<h3 class="sect">Gestion de l'effectif</h3><div class="card">
   ${effectif.map(j=>`<div class="voteopt">
    <span>${j.nom}</span>
    <span style="display:flex;gap:8px;align-items:center">
-    <span class="tag ${j.role==='manager'?'g':'grey'}" data-toggle-role="${j.id}" data-role-actuel="${j.role}" style="cursor:pointer">${j.role==='manager'?'Manager':'Joueur'}</span>
+    <span class="tag \${j.role==='manager'?'g':'grey'}" data-toggle-role="\${j.id}" data-role-actuel="\${j.role}" style="cursor:pointer">\${j.role==='manager'?'Manager':'Joueur'}</span>
     ${j.id!==MY_ID?`<button class="delbtn" data-remove-joueur="${j.id}" aria-label="Supprimer du club">🗑</button>`:''}
    </span></div>`).join("")}
   <div style="margin-top:12px;padding-top:12px;border-top:1px dashed var(--line)">
@@ -551,13 +572,13 @@ function viewClub(){
 }
 function viewMatch(m){
  let h=`<div class="backbar"><button class="bk" data-back="1">←</button></div>
- <div class="mhead"><div class="dt">${fmtDateFull(m.dt)}</div><div class="tm">${fmtTime(m.dt)}</div>
+ <div class="mhead"><div class="dt">\${fmtDateFull(m.dt)}</div><div class="tm">\${fmtTime(m.dt)}</div>
   <a data-venue="1">${m.venue}</a>
   ${m.comp==="Coupe"?`<div class="comp2">🏆 Coupe</div>`:''}
  </div>
  <div class="card">
-  <div class="teamrow ${m.score&&m.score[0]>m.score[1]?'win':''}"><span>${m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
-  <div class="teamrow ${m.score&&m.score[1]>m.score[0]?'win':''}"><span>${m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+  <div class="teamrow \${m.score&&m.score[0]>m.score[1]?'win':''}"><span>\${m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+  <div class="teamrow \${m.score&&m.score[1]>m.score[0]?'win':''}"><span>\${m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
  </div>`;
  if(m.status==="upcoming"){
   if(!m.dbId){
@@ -567,18 +588,18 @@ function viewMatch(m){
   const p=(m.presenceReal||{})[MY_ID];
   const g=groupCounts(m);
   h+=`<h3 class="sect">Présence</h3><div class="card">
-   <div class="oui-non"><button class="${p==='oui'?'yesOn':''}" data-pres="oui">OUI</button><button class="${p==='non'?'noOn':''}" data-pres="non">NON</button></div>
-   <div class="pgroup"><div class="cnt g">${g.yes.length}<span style="font-weight:600;font-size:12px">Présent</span></div><div class="names">${g.yes.join(", ")||"—"}</div></div>
-   <div class="pgroup"><div class="cnt r">${g.no.length}<span style="font-weight:600;font-size:12px">Absent</span></div><div class="names">${g.no.join(", ")||"—"}</div></div>
-   <div class="pgroup"><div class="cnt gy">${g.wait.length}<span style="font-weight:600;font-size:12px">Sans réponse</span></div><div class="names">${g.wait.join(", ")||"—"}</div></div>
+   <div class="oui-non"><button class="\${p==='oui'?'yesOn':''}" data-pres="oui">OUI</button><button class="\${p==='non'?'noOn':''}" data-pres="non">NON</button></div>
+   <div class="pgroup"><div class="cnt g">\${g.yes.length}<span style="font-weight:600;font-size:12px">Présent</span></div><div class="names">\${g.yes.join(", ")||"—"}</div></div>
+   <div class="pgroup"><div class="cnt r">\${g.no.length}<span style="font-weight:600;font-size:12px">Absent</span></div><div class="names">\${g.no.join(", ")||"—"}</div></div>
+   <div class="pgroup"><div class="cnt gy">\${g.wait.length}<span style="font-weight:600;font-size:12px">Sans réponse</span></div><div class="names">\${g.wait.join(", ")||"—"}</div></div>
   </div>`;
   if(ROLE==="manager"){
    h+=`<h3 class="sect">Modifier la présence (manager)</h3><div class="card">`;
    h+=effectif.filter(j=>j.id!==MY_ID).map(j=>{
     const pj=(m.presenceReal||{})[j.id];
     return `<div class="voteopt"><span>${j.nom}</span><span class="seg">
-     <button class="segbtn ${pj==='oui'?'on-yes':''}" data-mgr-pres="${j.id}" data-mgr-val="oui">OUI</button>
-     <button class="segbtn ${pj==='non'?'on-no':''}" data-mgr-pres="${j.id}" data-mgr-val="non">NON</button>
+     <button class="segbtn \${pj==='oui'?'on-yes':''}" data-mgr-pres="\${j.id}" data-mgr-val="oui">OUI</button>
+     <button class="segbtn \${pj==='non'?'on-no':''}" data-mgr-pres="\${j.id}" data-mgr-val="non">NON</button>
     </span></div>`;
    }).join("");
    h+=`</div>`;
@@ -643,9 +664,9 @@ function viewMatch(m){
    <table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
    ${m.playersOk.map(j=>{if(!m.statsDraft[j.id]) m.statsDraft[j.id]={buts:0,pd:0,gardien:false}; const s=m.statsDraft[j.id];
     return `<tr><td>${j.nom}</td>
-     <td><input type="number" min="0" value="${s.buts}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
-     <td><input type="number" min="0" value="${s.pd}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
-     <td><span data-stat-gardien="${j.id}" style="cursor:pointer">${s.gardien?'✓':'—'}</span></td></tr>`;}).join("")}
+     <td><input type="number" min="0" value="\${s.buts}" max="\${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
+     <td><input type="number" min="0" value="\${s.pd}" max="\${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
+     <td><span data-stat-gardien="\${j.id}" style="cursor:pointer">\${s.gardien?'✓':'—'}</span></td></tr>`;}).join("")}
    </table>
    <button class="votebtn" style="margin-top:10px" data-save-stats="1">Enregistrer les stats</button>`;
   } else {
@@ -661,220 +682,4 @@ function viewMatch(m){
 }
 
 function render(){
- document.getElementById("main").innerHTML = currentMatch ? viewMatch(currentMatch)
-  : currentTab==="cal" ? viewCal() : currentTab==="rank" ? viewRank() : viewClub();
- [...document.querySelectorAll("nav button")].forEach(b=>b.classList.toggle("active", !currentMatch && b.dataset.tab===currentTab));
- document.getElementById("avatarBtn").textContent = initials(ME);
- const unread = notifs.filter(n=>!n.lu).length;
- const badge = document.getElementById("bellBadge");
- badge.style.display = unread?"flex":"none"; badge.textContent = unread;
- bind();
- if(currentTab==="cal" && !currentMatch){
-  if(savedScroll!==null){ try{ window.scrollTo(0, savedScroll); }catch(_){} savedScroll = null; }
-  else { const nm = document.getElementById("nextMatch"); if(nm) nm.scrollIntoView({block:"center"}); }
- }
-}
-// Chaque « couche » (fiche match, panneau, fenêtre) ajoute une entrée à l'historique du navigateur :
-// le bouton retour d'Android la ferme au lieu de quitter l'application.
-let navDepth = 0, overlay = null, pendingTab = null, savedScroll = null;
-const uiState = ()=>({d:navDepth, tab:currentTab, match:currentMatch?currentMatch.id:null, overlay,
-  modal: !!document.querySelector(".modalbg") || document.getElementById("sheet").classList.contains("open")});
-function navPush(){ navDepth++; try{ history.pushState(uiState(), ""); return true; }catch(_){ navDepth--; return false; } }
-function navReplace(){ try{ history.replaceState(uiState(), ""); }catch(_){} }
-function navBack(direct){ if(navDepth>0) history.back(); else direct(); }
-function closeSheet(){ document.getElementById("sheet").classList.remove("open"); document.getElementById("ov2").classList.remove("open"); }
-window.addEventListener("popstate", e=>{
- if(!ME) return;
- const st = e.state || {d:0, tab:"cal", match:null, overlay:null, modal:false};
- navDepth = st.d || 0;
- if(!st.modal){ document.querySelectorAll(".modalbg").forEach(x=>x.remove()); closeSheet(); }
- document.getElementById("notifOv").classList.remove("open"); document.getElementById("profOv").classList.remove("open"); overlay = null;
- currentTab = st.tab || "cal";
- currentMatch = st.match ? (matches.find(m=>m.id===st.match) || null) : null;
- render();
- if(pendingTab){ const t = pendingTab; pendingTab = null; if(t!=="cal") goTab(t); }
-});
-function goTab(t){
- savedScroll = null;
- if(currentMatch){
-  if(navDepth>0){ pendingTab = t; history.go(-navDepth); return; }   // retour à l'écran de base, puis onglet demandé
-  currentMatch = null;
- }
- if(t===currentTab){ render(); }
- else if(t==="cal"){ if(navDepth>0){ history.back(); return; } currentTab = "cal"; render(); }
- else { currentTab = t; if(navDepth===0) navPush(); else navReplace(); render(); }
- if(currentTab==="club") refreshClubStats().then(()=>{ if(currentTab==="club" && !currentMatch) render(); });
-}
-async function openMatch(m, {replace=false}={}){
- if(!m) return;
- if(!currentMatch && currentTab==="cal") savedScroll = window.scrollY;   // retrouver sa place dans la liste au retour
- currentMatch = m; render();
- if(replace) navReplace(); else navPush();
- try{ window.scrollTo(0,0); }catch(_){}
- if(m.dbId){
-  if(m.status==="upcoming") await loadPresences(m); else await loadPastMatchData(m);
-  if(currentMatch===m) render();
- }
-}
-function openMatchById(dbId, opts){
- const m = matches.find(x=>x.dbId===dbId);
- if(m) openMatch(m, opts); else alert("Ce match n'est plus disponible dans le calendrier.");
-}
-function handleSwMessage(ev){
- if(!ev.data || ev.data.type!=="navigate") return;
- const id = new URL(ev.data.url, location.href).searchParams.get("match");
- if(!id) return;
- if(!ME){ pendingMatch = id; return; }
- openMatchById(id);
-}
-if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", handleSwMessage);
-
-function bind(){
- document.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>openMatch(matches.find(m=>m.id==el.dataset.open)));
- const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>navBack(()=>{ currentMatch=null; render(); });
- document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
- document.querySelectorAll("[data-mgr-pres]").forEach(b=>b.onclick=()=>setPresenceManager(currentMatch, b.dataset.mgrPres, b.dataset.mgrVal));
- document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
- document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onchange=()=>{
-  currentMatch.validationDraft[el.dataset.toggleJoue] = el.checked;
-  render();
- });
- const vf=document.querySelector("[data-valider-feuille]"); if(vf) vf.onclick=()=>validerFeuille(currentMatch);
- document.querySelectorAll("[data-stat-buts]").forEach(el=>el.oninput=()=>onStatInput(el,"buts",el.dataset.statButs));
- document.querySelectorAll("[data-stat-pd]").forEach(el=>el.oninput=()=>onStatInput(el,"pd",el.dataset.statPd));
- majStatsInfo("");
- document.querySelectorAll("[data-stat-gardien]").forEach(el=>el.onclick=()=>{
-  const id=el.dataset.statGardien; currentMatch.statsDraft[id].gardien=!currentMatch.statsDraft[id].gardien; render();
- });
- const ss=document.querySelector("[data-save-stats]"); if(ss) ss.onclick=()=>enregistrerStats(currentMatch);
- document.querySelectorAll("[data-toggle-role]").forEach(el=>el.onclick=()=>basculerRole(el.dataset.toggleRole));
- document.querySelectorAll("[data-remove-joueur]").forEach(el=>el.onclick=()=>retirerJoueur(el.dataset.removeJoueur));
- const rJ=document.getElementById("rJoueur"), rM=document.getElementById("rManager");
- if(rJ&&rM){ rJ.onclick=()=>{rJ.classList.add("yesOn"); rM.classList.remove("yesOn");}; rM.onclick=()=>{rM.classList.add("yesOn"); rJ.classList.remove("yesOn");}; }
- const aj=document.querySelector("[data-add-joueur]"); if(aj) aj.onclick=()=>{
-  const nom=document.getElementById("newNom").value.trim();
-  const email=document.getElementById("newEmail").value.trim();
-  const role=document.getElementById("rManager").classList.contains("yesOn")?"manager":"joueur";
-  ajouterJoueur(nom, email, role);
- };
- const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openVenueMenu(currentMatch.venue);
- const ag=document.querySelector("[data-agenda]"); if(ag) ag.onclick=openAgendaMenu;
-}
-function openSheet(opts){
- const s=document.getElementById("sheet"), o=document.getElementById("ov2");
- const items=opts.map(x=>typeof x==="string"?{label:x}:x);
- s.innerHTML=items.map(x=>`<div class="opt">${x.label}</div>`).join("")+`<div class="opt">Annuler</div>`;
- s.classList.add("open"); o.classList.add("open");
- let pushed = navPush();
- const close=()=>{ closeSheet(); if(pushed){ pushed = false; history.back(); } };
- o.onclick=close;
- s.querySelectorAll(".opt").forEach((el,i)=>el.onclick=()=>{ close(); if(items[i]&&items[i].run) items[i].run(); });
-}
-function openVenueMenu(venue){
- const q=encodeURIComponent(venue);
- openSheet([
-  {label:"Ouvrir dans Google Maps", run:()=>window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,"_blank")},
-  {label:"Ouvrir dans Waze", run:()=>window.open(`https://waze.com/ul?q=${q}&navigate=yes`,"_blank")},
-  {label:"Ouvrir dans Apple Plans", run:()=>window.open(`https://maps.apple.com/?q=${q}`,"_blank")},
- ]);
-}
-function openAgendaMenu(){
- const https=new URL("calendrier.ics", location.href).href;
- const webcal=https.replace(/^https?:/,"webcal:");
- openSheet([
-  {label:"S'abonner (iPhone, Mac, Android)", run:()=>{ window.location.href=webcal; }},
-  {label:"Copier le lien (Google Agenda, Outlook…)", run:()=>{
-    (navigator.clipboard?navigator.clipboard.writeText(https):Promise.reject()).then(()=>alert("Lien copié !")).catch(()=>prompt("Copie ce lien :", https));
-  }},
- ]);
-}
-const VAPID_PUBLIC = "BDtnsQ82oKQ9B3oUuFY0FOWWs8h5M2zGxOSD38ol4ykrbdHE9XqgClg-01qNo7O9jH4gJ3pv0xCEUvUG_lmHrok";
-const u8 = b64 => { const r = atob((b64+"=".repeat((4-b64.length%4)%4)).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from([...r].map(c=>c.charCodeAt(0))); };
-const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
-const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-async function pushState(){
- if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return (isIOS && !isStandalone) ? "ios-install" : "unsupported";
- if(Notification.permission === "denied") return "denied";
- const reg = await navigator.serviceWorker.getRegistration();
- const sub = reg && await reg.pushManager.getSubscription();
- return sub ? "on" : "off";
-}
-async function activerPush(){
- const reg = await navigator.serviceWorker.register("sw.js");
- await navigator.serviceWorker.ready;
- if(await Notification.requestPermission() !== "granted") return;
- const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:u8(VAPID_PUBLIC)});
- const j = sub.toJSON();
- const {error} = await sb.from("push_subscriptions").upsert({joueur_id:MY_ID, endpoint:j.endpoint, p256dh:j.keys.p256dh, auth_key:j.keys.auth}, {onConflict:"endpoint"});
- if(error) throw new Error(error.message);
-}
-async function desactiverPush(){
- const reg = await navigator.serviceWorker.getRegistration();
- const sub = reg && await reg.pushManager.getSubscription();
- if(sub){ await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
-}
-async function renderPushZone(){
- const z = document.getElementById("pushZone"); if(!z) return;
- const st = await pushState();
- const note = t => `<div style="font-size:12px;opacity:.9">${t}</div>`;
- z.innerHTML = st==="on" ? `<div style="font-size:13px;font-weight:600">🔔 Notifications activées sur cet appareil</div><a href="#" id="pushOff">Désactiver</a>`
-  : st==="off" ? `<button id="pushOn" style="width:100%;padding:11px;border-radius:10px;border:none;background:#fff;color:var(--green);font-weight:700">🔔 Activer les notifications</button>`
-  : st==="denied" ? note("Notifications bloquées : autorise-les dans les réglages de ton navigateur ou de ton appareil.")
-  : st==="ios-install" ? note("Sur iPhone : touche Partager puis « Sur l'écran d'accueil », ouvre l'app depuis son icône, puis reviens ici pour activer les notifications.")
-  : note("Notifications push indisponibles ici (essaie depuis l'app installée).");
- const on = document.getElementById("pushOn");
- if(on) on.onclick = async ()=>{ try{ await activerPush(); }catch(e){ alert("Activation impossible : "+e.message); } renderPushZone(); };
- const off = document.getElementById("pushOff");
- if(off) off.onclick = async e=>{ e.preventDefault(); await desactiverPush(); renderPushZone(); };
-}
-function openNotif(){
- document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
- ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"${n.match_id?` data-notif-match="${n.match_id}" style="cursor:pointer"`:''}><div>${esc(n.message)}<div class="t">${relTime(n.created_at)}${n.match_id?' · Voir le match ›':''}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
-  :'<div class="nitem">Aucune notification pour l\'instant.</div>'}`;
- document.getElementById("notifOv").classList.add("open");
- if(overlay!=="notif"){ overlay = "notif"; navPush(); }
- document.getElementById("ncl").onclick=()=>navBack(()=>{ document.getElementById("notifOv").classList.remove("open"); overlay = null; });
- document.querySelectorAll("[data-notif-match]").forEach(el=>el.onclick=()=>{
-  document.getElementById("notifOv").classList.remove("open"); overlay = null; navReplace();
-  openMatchById(el.dataset.notifMatch, {replace:true});
- });
- document.querySelectorAll("[data-del-notif]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); supprimerNotif(el.dataset.delNotif); });
- const idsNonLues = notifs.filter(n=>!n.lu).map(n=>n.id);
- if(idsNonLues.length){
-  sb.from("notifications").update({lu:true}).in("id", idsNonLues).then(()=>{
-   notifs.forEach(n=>n.lu=true); render();
-  });
- }
-}
-function openProfil(){
- document.getElementById("profOv").innerHTML=`<div class="profov">
-  <div class="ov-head"><b></b><button class="x" id="pcl">✕</button></div>
-  <div style="font-weight:800;letter-spacing:1px;margin-top:-30px">PROFIL</div>
-  <div class="av2">${initials(ME)}</div><h4>${ME.toUpperCase()}</h4><a>${MY_EMAIL}</a>
-  <div id="pushZone" style="margin:22px 20px 0"></div>
-  <div style="font-size:12px;opacity:.9;margin-top:20px">Thème</div>
-  <div class="roleswitch" style="margin-top:6px">
-   <button data-theme-set="light" class="${theme==='light'?'on':''}">☀️ Clair</button>
-   <button data-theme-set="dark" class="${theme==='dark'?'on':''}">🌙 Sombre</button>
-  </div>
-  <div class="deco"><a href="#" id="logoutLink">Se déconnecter</a></div>
- </div>`;
- document.getElementById("profOv").classList.add("open");
- if(overlay!=="profil"){ overlay = "profil"; navPush(); }
- renderPushZone();
- document.querySelectorAll("[data-theme-set]").forEach(b=>b.onclick=()=>{
-  setTheme(b.dataset.themeSet);
-  document.querySelectorAll("[data-theme-set]").forEach(x=>x.classList.toggle("on", x===b));
- });
- document.getElementById("pcl").onclick=()=>navBack(()=>{ document.getElementById("profOv").classList.remove("open"); overlay = null; });
- document.getElementById("logoutLink").onclick=async (e)=>{e.preventDefault(); await sb.auth.signOut(); location.reload();};
-}
-document.getElementById("bellBtn").onclick=openNotif;
-document.getElementById("avatarBtn").onclick=openProfil;
-function applyTheme(t){ theme=t; document.documentElement.setAttribute("data-theme", t==="dark"?"dark":""); }
-function setTheme(t){ applyTheme(t); try{ localStorage.setItem("parisasf_theme", t); }catch(_){} }
-try{ applyTheme(localStorage.getItem("parisasf_theme")==="dark"?"dark":"light"); }catch(_){}
-document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
-</script>
-</body>
-</html>
+ docu
