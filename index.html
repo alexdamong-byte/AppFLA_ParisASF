@@ -87,31 +87,15 @@ h3.sect{text-align:center;font-size:14px;letter-spacing:1px;color:var(--muted);m
 .winner b{font-size:17px;}
 .winner i{color:var(--green);font-size:14px;}
 
-/* Tableaux généraux */
-table{width:100%;border-collapse:collapse;font-size:16px;table-layout:fixed;}
-th{font-weight:800;text-align:center;padding:10px 2px;border-bottom:2px solid var(--line);cursor:pointer;user-select:none;}
-td{text-align:center;padding:10px 2px;border-bottom:1px solid var(--line);}
+/* CSS personnalisé pour le tableau des Statistiques du Club et Classement */
+table{width:100%;border-collapse:collapse;font-size:17px;table-layout:fixed;}
+th{font-weight:800;text-align:center;padding:11px 4px;border-bottom:2px solid var(--line);cursor:pointer;user-select:none;}
+td{text-align:center;padding:11px 4px;border-bottom:1px solid var(--line);}
+th:nth-child(1),td:nth-child(1){width:40%;text-align:left;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} /* Alignement des noms et largeur fixée */
 tr:last-child td{border-bottom:none;}
 .tot{background:var(--chipbg);font-weight:800;}
-.hi{background:rgba(2, 135, 108, 0.25) !important;}
+.hi{background:rgba(2, 135, 108, 0.25) !important;} /* Surlignage PARIS ASF accentué */
 .hi td b{font-weight:900;color:var(--green);}
-
-/* Spécifique Classement : # compact, Équipe à gauche sur une seule ligne, stats réparties */
-.rank-table th:nth-child(1), .rank-table td:nth-child(1){width:8%;text-align:center;padding:10px 1px;}
-.rank-table th:nth-child(2), .rank-table td:nth-child(2){width:46%;text-align:left;padding-left:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.rank-table th:nth-child(3), .rank-table td:nth-child(3){width:12%;text-align:center;}
-.rank-table th:nth-child(4), .rank-table td:nth-child(4),
-.rank-table th:nth-child(5), .rank-table td:nth-child(5),
-.rank-table th:nth-child(6), .rank-table td:nth-child(6),
-.rank-table th:nth-child(7), .rank-table td:nth-child(7){width:8.5%;text-align:center;}
-
-/* Spécifique Club : Joueurs à gauche sur une seule ligne, stats uniformes */
-.club-table th:nth-child(1), .club-table td:nth-child(1){width:45%;text-align:left;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.club-table th:not(:first-child), .club-table td:not(:first-child){width:11%;text-align:center;}
-
-/* Spécifique Stats du Match */
-.stats-match-table th:nth-child(1), .stats-match-table td:nth-child(1){width:46%;text-align:left;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.stats-match-table th:not(:first-child), .stats-match-table td:not(:first-child){width:18%;text-align:center;}
 
 .proto{background:#3a2e10;color:#e8b93b;font-size:13px;padding:7px 10px;border-radius:8px;margin-bottom:10px;text-align:center;}
 .manager{font-size:14px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);}
@@ -207,11 +191,14 @@ const esc=t=>String(t).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"
 const cleanVenue=v=>(v||"").replace(/\s*\(ouvre l'itinéraire[^)]*\)\s*/gi,"").trim()||"Lieu à confirmer";
 let effectif=[]; // [{id, nom}]
 
+// Tableau local pour stocker nos présences récupérées en tâche de fond pour l'affichage de la couleur
 let mesPresencesLocales = {};
 
-let clubSortKey = 'n';
+// Paramètres de tri pour l'onglet Club
+let clubSortKey = 'n'; // tri par défaut par prénom
 let clubSortAsc = true;
 
+// Fonction de simplification des noms
 function simplifierNom(nomComplet, listeNoms) {
  if(!nomComplet) return "";
  const parties = nomComplet.trim().split(/\s+/);
@@ -248,6 +235,7 @@ function simplifierNom(nomComplet, listeNoms) {
  return prenom + " " + nomFamille;
 }
 
+// Modale de confirmation personnalisée
 function showConfirm(title, message, onConfirm) {
   const bg = document.createElement("div");
   bg.className = "modalbg";
@@ -339,9 +327,9 @@ const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","
 const fmtTime=d=>d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 const fmtDay=d=>d.getDate().toString().padStart(2,"0");
 const fmtMonAbbr=d=>MOIS[d.getMonth()].slice(0,3)+".";
-const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()}${d.getFullYear()}`;
+const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()} ${d.getFullYear()}`;
 
-const sourceId = m => `${m.competition}\vert{}${m.domicile}|${m.exterieur}\vert{}${m.date}`;
+const sourceId = m => `${m.competition}|${m.domicile}|${m.exterieur}|${m.date}`;
 
 async function loadDonneesFLA(){
  try{
@@ -483,7 +471,7 @@ function onStatInput(el, champ, id){
   const max = Math.max(0, m.scoreOfficiel - totalStat(m, champ, id));
   if(v>max){
    v = max; el.value = String(max);
-   avert = `Maximum ${max} : le total des${champ==="buts"?"buts":"passes décisives"} ne peut pas dépasser le score de l'équipe (${m.scoreOfficiel}).`;
+   avert = `Maximum ${max} : le total des ${champ==="buts"?"buts":"passes décisives"} ne peut pas dépasser le score de l'équipe (${m.scoreOfficiel}).`;
   }
  }
  if(el.value!=="" && String(v)!==el.value) el.value = String(v);
@@ -521,12 +509,12 @@ function matchRow(m, isNext){
  const st = m.status==="past"?"past":(m.presence && ME && m.presence[ME]==="oui"?"yes":m.presence && ME && m.presence[ME]==="non"?"no":"wait");
  const homeWin = !!m.score && m.score[0]>m.score[1], awayWin = !!m.score && m.score[1]>m.score[0];
  return `<div class="mrow" data-open="${m.id}"${isNext?' id="nextMatch"':''}>
-  <div class="dblock d-${st}" data-color-match="${m.dbId \vert{}\vert{} ''}"><b>${fmtDay(m.dt)}</b><span style="font-size:14px">${fmtMonAbbr(m.dt)}</span></div>
+  <div class="dblock d-${st}" data-color-match="${m.dbId || ''}"><b>${fmtDay(m.dt)}</b><span style="font-size:14px">${fmtMonAbbr(m.dt)}</span></div>
   <div class="minfo">
    ${m.comp==="Coupe"?`<div class="comp">🏆 Coupe</div>`:''}
-   <div class="trow ${homeWin?'win':''}"><span>${m.domicile \vert{}\vert{} m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
-   <div class="trow ${awayWin?'win':''}"><span>${m.exterieur \vert{}\vert{} m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
-   <div class="venue">${fmtTime(m.dt)} ·${m.venue}</div>
+   <div class="trow ${homeWin?'win':''}"><span>${m.domicile || m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+   <div class="trow ${awayWin?'win':''}"><span>${m.exterieur || m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+   <div class="venue">${fmtTime(m.dt)} · ${m.venue}</div>
   </div></div>`;
 }
 
@@ -537,7 +525,7 @@ function viewCal(){
 }
 
 function viewRank(){
- return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 0"><table class="rank-table"><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
+ return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 0"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
  ${ranking.map((r,i)=>`<tr class="${r.me?'hi':''}"><td>${i+1}</td><td>${r.me?'<b>'+r.p+'</b>':r.p}</td><td><b>${r.pt}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.l}</td></tr>`).join("")}
  </table></div>`;
 }
@@ -612,13 +600,14 @@ function viewClub(){
    return clubSortAsc ? ' ▲' : ' ▼';
  };
  return `<h2 class="title">CLUB</h2>
- <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours (Championnat + Coupe)</div><div class="sheet-card" style="padding:6px 0"><table class="club-table"><tr>
+ <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours (Championnat + Coupe)</div><div class="sheet-card" style="padding:6px 0"><table><tr>
  <th onclick="changeClubSort('n')">Joueurs${indicator('n')}</th>
  <th onclick="changeClubSort('j')">J${indicator('j')}</th>
  <th onclick="changeClubSort('b')">B${indicator('b')}</th>
  <th onclick="changeClubSort('pd')">PD${indicator('pd')}</th>
  <th onclick="changeClubSort('gb')">GB${indicator('gb')}</th>
- <th onclick="changeClubSort('hm')">HM${indicator('hm')}</th></tr>${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
+ <th onclick="changeClubSort('hm')">HM${indicator('hm')}</th></tr>
+ ${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
   :clubRows===null?'<tr><td colspan="6" style="text-align:center;color:var(--muted)">Chargement des statistiques…</td></tr>'
   :rows.map(p=>`<tr><td>${esc(p.n)}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
  <tr class="tot"><td>PARIS ASF</td><td>${tot.j}</td><td>${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
@@ -628,11 +617,12 @@ function viewClub(){
 function viewMatch(m){
  let h=`<div class="backbar"><button class="bk" data-back="1">←</button></div>
  <div class="mhead"><div class="dt">${fmtDateFull(m.dt)}</div><div class="tm">${fmtTime(m.dt)}</div>
-  <a data-venue="1">${m.venue}</a>${m.comp==="Coupe"?`<div class="comp2">🏆 Coupe</div>`:''}
+  <a data-venue="1">${m.venue}</a>
+  ${m.comp==="Coupe"?`<div class="comp2">🏆 Coupe</div>`:''}
  </div>
  <div class="card">
-  <div class="teamrow ${m.score&&m.score[0]>m.score[1]?'win':''}"><span>${m.domicile \vert{}\vert{} m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
-  <div class="teamrow ${m.score&&m.score[1]>m.score[0]?'win':''}"><span>${m.exterieur \vert{}\vert{} m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+  <div class="teamrow ${m.score&&m.score[0]>m.score[1]?'win':''}"><span>${m.domicile || m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+  <div class="teamrow ${m.score&&m.score[1]>m.score[0]?'win':''}"><span>${m.exterieur || m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
  </div>`;
  
  if(m.status==="upcoming"){
@@ -643,10 +633,12 @@ function viewMatch(m){
   
   const myPresence = (m.presenceReal||{})[MY_ID];
   
+  // Bloc de présence de l'utilisateur
   h+=`<h3 class="sect">Ma Présence</h3><div class="card">
    <div class="oui-non"><button class="${myPresence==='oui'?'yesOn':''}" data-pres="oui">OUI</button><button class="${myPresence==='non'?'noOn':''}" data-pres="non">NON</button></div>
   </div>`;
    
+  // Préparation de la liste complète triée
   const listeNomsTous = effectif.map(x=>x.nom);
   let joueursTries = effectif.map(j => {
       const pj = (m.presenceReal || {})[j.id] || "wait";
@@ -674,6 +666,7 @@ function viewMatch(m){
        <span style="color:var(--muted)">${counts.wait} Sans réponse</span>
      </div>`;
   
+  // Liste unifiée des joueurs
   h+=`<div class="card" style="padding:0">`;
   joueursTries.forEach(j => {
       h += `<div class="voteopt" style="padding:10px 14px"><span>${esc(j.nomSimplifie)}</span><span class="seg">`;
@@ -682,6 +675,7 @@ function viewMatch(m){
           h += `<button class="segbtn ${j.pj==='oui'?'on-yes':''}" data-mgr-pres="${j.id}" data-mgr-val="oui">OUI</button>
                 <button class="segbtn ${j.pj==='non'?'on-no':''}" data-mgr-pres="${j.id}" data-mgr-val="non">NON</button>`;
       } else {
+          // Vue en lecture seule
           if (j.pj === 'oui') {
               h += `<button class="segbtn on-yes" style="pointer-events:none">OUI</button><button class="segbtn" style="pointer-events:none;opacity:0.3">NON</button>`;
           } else if (j.pj === 'non') {
@@ -756,7 +750,7 @@ function viewMatch(m){
    h+=`<div class="small" style="color:var(--muted)">Pas encore de joueurs validés.</div>`;
   } else if(ROLE==="manager"){
    h+=`${m.scoreOfficiel!==null?`<div id="statsInfo" class="small" style="display:none;margin-bottom:8px;font-weight:700;color:var(--red)"></div>`:`<div class="small" style="margin-bottom:8px;color:var(--red)">Score officiel indisponible : contrôle impossible.</div>`}
-   <table class="stats-match-table"><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+   <table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
    ${m.playersOk.map(j=>{if(!m.statsDraft[j.id]) m.statsDraft[j.id]={buts:0,pd:0,gardien:false}; const s=m.statsDraft[j.id];
     const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
     return `<tr><td>${nomSimplifie}</td>
@@ -766,7 +760,7 @@ function viewMatch(m){
    </table>
    <button class="votebtn" style="margin-top:10px" data-save-stats="1">Enregistrer les stats</button>`;
   } else {
-   <table class="stats-match-table"><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+   h+=`<table><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
    ${m.playersOk.map(j=>{const s=m.statsDraft[j.id]||{buts:0,pd:0,gardien:false};
     const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
     return `<tr><td>${nomSimplifie}</td><td>${s.buts}</td><td>${s.pd}</td><td>${s.gardien?'✓':'—'}</td></tr>`;}).join("")}
@@ -807,6 +801,7 @@ function appliqCouleursCalendrier(){
   
   el.className = "dblock";
   
+  // Règle: matchs joués en gris (priorité absolue) sinon couleur selon présence
   if(m && m.status === "past") {
    el.classList.add("d-past");
   } else if(statut === "oui") {
