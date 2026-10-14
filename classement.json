@@ -1,5 +1,21 @@
 [
   {
+    "equipe": "LE TIR ASCBB C",
+    "points": 4,
+    "joues": 0,
+    "gagnes": 1,
+    "nuls": 1,
+    "perdus": 0
+  },
+  {
+    "equipe": "FC TIKITACOS",
+    "points": 1,
+    "joues": 0,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "ASTEC FC",
     "points": 0,
     "joues": 0,
@@ -24,14 +40,6 @@
     "perdus": 0
   },
   {
-    "equipe": "FC TIKITACOS",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
     "equipe": "LA DISTILLERIE FC A",
     "points": 0,
     "joues": 0,
@@ -49,14 +57,6 @@
   },
   {
     "equipe": "LA MEUTE",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "LE TIR ASCBB C",
     "points": 0,
     "joues": 0,
     "gagnes": 0,
