@@ -15,11 +15,11 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <style>
 .login{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;padding:24px;text-align:center;}
-.login h1{font-size:22px;margin-bottom:6px;}
-.login p{color:var(--muted);font-size:13px;margin-bottom:22px;}
-.login input{width:100%;max-width:280px;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:14px;margin-bottom:10px;}
-.login button{width:100%;max-width:280px;padding:12px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:14px;}
-.login .msg{margin-top:14px;font-size:13px;color:var(--green);min-height:18px;}
+.login h1{font-size:26px;margin-bottom:6px;}
+.login p{color:var(--muted);font-size:16px;margin-bottom:22px;}
+.login input{width:100%;max-width:280px;padding:14px 16px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--text);font-size:17px;margin-bottom:10px;}
+.login button{width:100%;max-width:280px;padding:14px;border-radius:10px;border:none;background:var(--green);color:#fff;font-weight:700;font-size:17px;}
+.login .msg{margin-top:14px;font-size:16px;color:var(--green);min-height:18px;}
 .login .err{color:var(--red);}
 :root{
  --bg:#ffffff; --card:#ffffff; --header:#0a1119; --line:#e6e9ec;
@@ -35,117 +35,116 @@ html,body{height:100%;}
 body{background:var(--bg);color:var(--text);}
 #app{max-width:460px;margin:0 auto;min-height:100vh;position:relative;background:var(--bg);padding-top:calc(56px + env(safe-area-inset-top,0));padding-bottom:calc(64px + env(safe-area-inset-bottom,0));}
 .topbar{position:fixed;top:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;z-index:15;background:var(--header);color:#fff;padding:calc(12px + env(safe-area-inset-top,0)) 16px 12px;display:flex;align-items:center;justify-content:space-between;}
-.topbar b{font-size:16px;letter-spacing:.5px;}
+.topbar b{font-size:19px;letter-spacing:.5px;}
 .topbar .right{display:flex;align-items:center;gap:14px;}
-.iconbtn{position:relative;font-size:19px;cursor:pointer;background:none;border:none;color:#fff;}
-.badge{position:absolute;top:-5px;right:-7px;background:var(--red);color:#fff;font-size:10px;width:15px;height:15px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;}
-.avatar{width:30px;height:30px;border-radius:50%;background:var(--green);color:#fff;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
+.iconbtn{position:relative;font-size:23px;cursor:pointer;background:none;border:none;color:#fff;}
+.badge{position:absolute;top:-5px;right:-7px;background:var(--red);color:#fff;font-size:12px;width:18px;height:18px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;font-size:14px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;}
 main{padding:14px 12px 20px;}
-h2.title{text-align:center;font-weight:800;font-size:15px;letter-spacing:.5px;margin-bottom:10px;}
+h2.title{text-align:center;font-weight:800;font-size:18px;letter-spacing:.5px;margin-bottom:10px;}
 .sheet-card{background:var(--card);border:1px solid var(--line);border-radius:14px;overflow:hidden;}
 .mrow{display:flex;gap:12px;padding:12px 12px;border-bottom:1px solid var(--line);align-items:center;cursor:pointer;}
 .mrow:last-child{border-bottom:none;}
 .dblock{width:54px;flex-shrink:0;border-radius:10px;padding:8px 0;text-align:center;color:#fff;}
-.dblock b{display:block;font-size:19px;line-height:1;}
-.dblock span{font-size:10px;text-transform:uppercase;}
+.dblock b{display:block;font-size:23px;line-height:1;}
+.dblock span{font-size:12px;text-transform:uppercase;}
 .d-wait{background:var(--header);}
 .d-no{background:var(--red);}
 .d-yes{background:var(--green);}
 .d-past{background:var(--grey);}
 .minfo{flex:1;min-width:0;}
-.comp{font-size:11px;color:var(--gold);display:flex;align-items:center;gap:4px;margin-bottom:2px;}
-.trow{display:flex;justify-content:space-between;font-size:13.5px;font-weight:600;}
+.comp{font-size:13px;color:var(--gold);display:flex;align-items:center;gap:4px;margin-bottom:2px;}
+.trow{display:flex;justify-content:space-between;font-size:16px;font-weight:600;}
 .trow.win{font-weight:800;}
-.venue{font-size:11.5px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.venue{font-size:14px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 nav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:460px;z-index:15;background:var(--header);display:flex;padding:8px 8px calc(8px + env(safe-area-inset-bottom,0));gap:6px;}
-nav button{flex:1;background:none;border:none;color:#b9c3cc;font-size:11px;padding:8px 0;border-radius:20px;display:flex;flex-direction:column;align-items:center;gap:3px;}
+nav button{flex:1;background:none;border:none;color:#b9c3cc;font-size:13px;padding:8px 0;border-radius:20px;display:flex;flex-direction:column;align-items:center;gap:3px;}
 nav button.active{background:var(--green);color:#fff;}
 .backbar{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
-.backbar .bk{font-size:20px;cursor:pointer;color:var(--text);background:none;border:none;}
+.backbar .bk{font-size:24px;cursor:pointer;color:var(--text);background:none;border:none;}
 .mhead{text-align:center;padding:2px 0 14px;}
-.mhead .dt{font-weight:800;font-size:16px;}
-.mhead .tm{font-weight:800;font-size:16px;}
-.mhead a{color:var(--green);font-size:13px;display:block;margin-top:4px;text-decoration:underline;cursor:pointer;}
-.mhead .comp2{font-size:12px;color:var(--gold);margin-top:4px;display:flex;justify-content:center;gap:4px;}
+.mhead .dt{font-weight:800;font-size:19px;}
+.mhead .tm{font-weight:800;font-size:19px;}
+.mhead a{color:var(--green);font-size:16px;display:block;margin-top:4px;text-decoration:underline;cursor:pointer;}
+.mhead .comp2{font-size:14px;color:var(--gold);margin-top:4px;display:flex;justify-content:center;gap:4px;}
 .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px;}
-.teamrow{display:flex;justify-content:space-between;font-size:15px;font-weight:500;padding:5px 0;}
+.teamrow{display:flex;justify-content:space-between;font-size:18px;font-weight:500;padding:5px 0;}
 .teamrow.win{font-weight:800;}
-h3.sect{text-align:center;font-size:12px;letter-spacing:1px;color:var(--muted);margin:14px 0 8px;text-transform:uppercase;}
+h3.sect{text-align:center;font-size:14px;letter-spacing:1px;color:var(--muted);margin:14px 0 8px;text-transform:uppercase;}
 .oui-non{display:flex;gap:10px;}
-.oui-non button{flex:1;padding:11px;border-radius:10px;border:none;font-weight:700;background:var(--chipbg);color:var(--text);}
+.oui-non button{flex:1;padding:14px;border-radius:10px;border:none;font-weight:700;font-size:17px;background:var(--chipbg);color:var(--text);}
 .oui-non button.yesOn{background:var(--green);color:#fff;}
 .oui-non button.noOn{background:var(--red);color:#fff;}
 .pgroup{margin-top:14px;}
 .pgroup .cnt{display:flex;gap:8px;align-items:baseline;font-weight:800;margin-bottom:4px;}
 .cnt.g{color:var(--green);} .cnt.r{color:var(--red);} .cnt.gy{color:var(--muted);}
-.pgroup .names{font-size:13px;color:var(--text);line-height:1.6;padding-left:2px;}
-.votebtn{display:block;width:100%;background:var(--green);color:#fff;border:none;padding:13px;border-radius:10px;font-weight:700;font-size:14px;}
-.voteopt{display:flex;justify-content:space-between;align-items:center;padding:9px 4px;border-bottom:1px solid var(--line);}
+.pgroup .names{font-size:16px;color:var(--text);line-height:1.6;padding-left:2px;}
+.votebtn{display:block;width:100%;background:var(--green);color:#fff;border:none;padding:14px;border-radius:10px;font-weight:700;font-size:17px;}
+.voteopt{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);}
 .voteopt button{background:var(--chipbg);border:none;color:var(--green);font-weight:700;padding:6px 12px;border-radius:8px;}
 .winner{display:flex;align-items:center;gap:10px;}
-.winner .av{width:32px;height:32px;border-radius:50%;background:var(--green);color:#fff;font-size:11px;font-weight:700;display:flex;align-items:center;justify-content:center;}
-.winner b{font-size:14px;}
-.winner i{color:var(--green);font-size:12px;}
+.winner .av{width:36px;height:36px;border-radius:50%;background:var(--green);color:#fff;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+.winner b{font-size:17px;}
+.winner i{color:var(--green);font-size:14px;}
 
 /* CSS personnalisé pour le tableau des Statistiques du Club et Classement */
-table{width:100%;border-collapse:collapse;font-size:14px;} /* Police à 14px */
-th{font-weight:800;text-align:center;padding:9px 4px;border-bottom:2px solid var(--line);cursor:pointer;user-select:none;}
-td{text-align:center;padding:9px 4px;border-bottom:1px solid var(--line);}
-th:nth-child(1),td:nth-child(1){text-align:left;padding-left:8px;} /* Alignement des noms à gauche */
-th:nth-child(2),td:nth-child(2){text-align:center;}
+table{width:100%;border-collapse:collapse;font-size:17px;table-layout:fixed;}
+th{font-weight:800;text-align:center;padding:11px 4px;border-bottom:2px solid var(--line);cursor:pointer;user-select:none;}
+td{text-align:center;padding:11px 4px;border-bottom:1px solid var(--line);}
+th:nth-child(1),td:nth-child(1){width:40%;text-align:left;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;} /* Alignement des noms et largeur fixée */
 tr:last-child td{border-bottom:none;}
 .tot{background:var(--chipbg);font-weight:800;}
 .hi{background:rgba(2, 135, 108, 0.25) !important;} /* Surlignage PARIS ASF accentué */
 .hi td b{font-weight:900;color:var(--green);}
 
-.proto{background:#3a2e10;color:#e8b93b;font-size:11px;padding:7px 10px;border-radius:8px;margin-bottom:10px;text-align:center;}
-.manager{font-size:12px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);}
+.proto{background:#3a2e10;color:#e8b93b;font-size:13px;padding:7px 10px;border-radius:8px;margin-bottom:10px;text-align:center;}
+.manager{font-size:14px;color:var(--muted);margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);}
 .overlay{position:fixed;inset:0;max-width:460px;margin:0 auto;z-index:30;display:none;background:var(--card);padding-top:env(safe-area-inset-top,0);}
 .overlay.open{display:block;}
 .ov-head{display:flex;justify-content:space-between;align-items:center;padding:16px;}
-.ov-head b{font-size:14px;letter-spacing:1px;}
-.ov-head .x{font-size:20px;cursor:pointer;background:none;border:none;color:inherit;}
+.ov-head b{font-size:17px;letter-spacing:1px;}
+.ov-head .x{font-size:24px;cursor:pointer;background:none;border:none;color:inherit;}
 .nitem{display:flex;gap:10px;padding:12px 16px;border-left:4px solid transparent;border-bottom:1px solid var(--line);}
 .nitem.unread{border-left-color:var(--red);}
-.nitem .t{font-size:11px;color:var(--muted);margin-top:3px;}
-.nitem .del{margin-left:auto;color:var(--red);cursor:pointer;font-size:15px;}
+.nitem .t{font-size:13px;color:var(--muted);margin-top:3px;}
+.nitem .del{margin-left:auto;color:var(--red);cursor:pointer;font-size:18px;}
 .profov{background:var(--green);color:#fff;height:100%;text-align:center;}
 .profov .ov-head b,.profov .ov-head .x{color:#fff;}
-.profov .av2{width:70px;height:70px;border-radius:50%;background:#fff;color:var(--green);font-size:22px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:20px auto 12px;}
-.profov h4{font-size:16px;}
-.profov a{color:#fff;font-size:13px;display:block;margin-top:6px;text-decoration:underline;}
+.profov .av2{width:70px;height:70px;border-radius:50%;background:#fff;color:var(--green);font-size:26px;font-weight:800;display:flex;align-items:center;justify-content:center;margin:20px auto 12px;}
+.profov h4{font-size:19px;}
+.profov a{color:#fff;font-size:16px;display:block;margin-top:6px;text-decoration:underline;}
 .deco{position:absolute;bottom:calc(30px + env(safe-area-inset-bottom,0));left:0;right:0;text-align:center;}
 .roleswitch{display:flex;gap:8px;justify-content:center;margin-top:22px;padding:0 20px;}
-.roleswitch button{flex:1;padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,.5);background:none;color:#fff;font-size:12px;font-weight:600;}
+.roleswitch button{flex:1;padding:10px;border-radius:8px;border:1px solid rgba(255,255,255,.5);background:none;color:#fff;font-size:14px;font-weight:600;}
 .roleswitch button.on{background:#fff;color:var(--green);}
 .sheet{position:fixed;left:0;right:0;bottom:0;background:var(--card);color:var(--text);border-radius:16px 16px 0 0;max-width:460px;margin:0 auto;padding:14px 16px calc(20px + env(safe-area-inset-bottom,0));display:none;z-index:40;}
 .sheet.open{display:block;}
 .ov2{position:fixed;inset:0;background:rgba(0,0,0,.5);display:none;z-index:39;}
 .ov2.open{display:block;}
-.sheet .opt{padding:13px 4px;font-size:15px;border-bottom:1px solid var(--line);}
+.sheet .opt{padding:14px 4px;font-size:18px;border-bottom:1px solid var(--line);}
 .sheet .opt:last-child{border:none;color:var(--red);text-align:center;}
-.small{font-size:12px;color:var(--muted);}
-.tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;}
+.small{font-size:14px;color:var(--muted);}
+.tag{display:inline-block;padding:3px 10px;border-radius:999px;font-size:13px;font-weight:700;white-space:nowrap;}
 .tag.g{background:rgba(2,135,108,.15);color:var(--green);}
 .tag.r{background:rgba(186,0,0,.12);color:var(--red);}
 .tag.grey{background:var(--chipbg);color:var(--muted);}
 .seg{display:flex;gap:6px;}
-.segbtn{min-width:54px;padding:9px 10px;border-radius:8px;border:none;font-weight:700;font-size:12px;background:var(--chipbg);color:var(--muted);cursor:pointer;}
+.segbtn{min-width:60px;padding:10px 12px;border-radius:8px;border:none;font-weight:700;font-size:14px;background:var(--chipbg);color:var(--muted);cursor:pointer;}
 .segbtn.on-yes{background:var(--green);color:#fff;}
 .segbtn.on-no{background:var(--red);color:#fff;}
 .chk{cursor:pointer;}
-.chk input[type=checkbox]{width:22px;height:22px;accent-color:var(--green);flex-shrink:0;}
+.chk input[type=checkbox]{width:24px;height:24px;accent-color:var(--green);flex-shrink:0;}
 .modalbg{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;}
 .modal{background:var(--card);color:var(--text);border-radius:16px;padding:20px;max-width:360px;width:100%;box-shadow:0 10px 40px rgba(0,0,0,.35);}
-.modal h4{font-size:17px;margin-bottom:8px;}
-.modal p{font-size:13.5px;color:var(--muted);line-height:1.45;}
+.modal h4{font-size:20px;margin-bottom:8px;}
+.modal p{font-size:16px;color:var(--muted);line-height:1.45;}
 .mbtns{display:flex;gap:10px;}
-.mbtn{flex:1;padding:12px;border-radius:10px;border:none;font-weight:700;font-size:14px;background:var(--chipbg);color:var(--text);cursor:pointer;}
+.mbtn{flex:1;padding:12px;border-radius:10px;border:none;font-weight:700;font-size:17px;background:var(--chipbg);color:var(--text);cursor:pointer;}
 .mbtn.danger{background:var(--red);color:#fff;}
 .mbtn.primary{background:var(--green);color:#fff;}
 .mbtn:disabled{opacity:.4;cursor:not-allowed;}
-.delbtn{background:none;border:none;font-size:18px;padding:6px 8px;cursor:pointer;color:var(--red);}
-.compact-summary{display:flex;justify-content:center;gap:14px;font-size:14px;font-weight:700;margin-bottom:12px;padding:8px;background:var(--chipbg);border-radius:8px;}
+.delbtn{background:none;border:none;font-size:20px;padding:6px 8px;cursor:pointer;color:var(--red);}
+.compact-summary{display:flex;justify-content:center;gap:14px;font-size:17px;font-weight:700;margin-bottom:12px;padding:10px;background:var(--chipbg);border-radius:8px;}
 </style>
 </head>
 <body>
@@ -199,7 +198,7 @@ let mesPresencesLocales = {};
 let clubSortKey = 'n'; // tri par défaut par prénom
 let clubSortAsc = true;
 
-// Fonction de simplification des noms de l'effectif sécurisée pour le démarrage
+// Fonction de simplification des noms
 function simplifierNom(nomComplet, listeNoms) {
  if(!nomComplet) return "";
  const parties = nomComplet.trim().split(/\s+/);
@@ -211,13 +210,11 @@ function simplifierNom(nomComplet, listeNoms) {
   return prenom;
  }
  
- // Trouver s'il y a d'autres joueurs avec le même prénom dans la liste
  const homonymes = listeNoms.filter(n => n && n !== nomComplet && n.trim().split(/\s+/)[0].toLowerCase() === prenom.toLowerCase());
  if (homonymes.length === 0) {
-  return prenom; // Prénom unique
+  return prenom; 
  }
  
- // S'il y a des homonymes, on ajoute l'initiale et on allonge au besoin pour lever l'ambiguïté
  let longueurInitiale = 1;
  while (longueurInitiale <= nomFamille.length) {
   const initialeCourante = nomFamille.slice(0, longueurInitiale).trim();
@@ -238,7 +235,26 @@ function simplifierNom(nomComplet, listeNoms) {
  return prenom + " " + nomFamille;
 }
 
-// RESTAURATION STRICTE D'ORIGINE DE loadJoueurEtDemarre
+// Modale de confirmation personnalisée
+function showConfirm(title, message, onConfirm) {
+  const bg = document.createElement("div");
+  bg.className = "modalbg";
+  bg.style.zIndex = "999";
+  bg.innerHTML = `
+   <div class="modal">
+    <h4>${esc(title)}</h4>
+    <p>${esc(message)}</p>
+    <div class="mbtns" style="margin-top:20px">
+     <button class="mbtn" id="btnCancelConf">Annuler</button>
+     <button class="mbtn primary" id="btnOkConf">Oui</button>
+    </div>
+   </div>
+  `;
+  document.body.appendChild(bg);
+  document.getElementById("btnCancelConf").onclick = () => bg.remove();
+  document.getElementById("btnOkConf").onclick = () => { bg.remove(); onConfirm(); };
+}
+
 async function loadJoueurEtDemarre(session){
  const email = session.user.email;
  const {data, error} = await sb.from("joueurs").select("id,nom,role").eq("email", email).eq("actif", true).maybeSingle();
@@ -253,7 +269,6 @@ async function loadJoueurEtDemarre(session){
  effectif = tousJoueurs||[];
  if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
  
- // On charge la version originale sans requêtes bloquantes
  await loadDonneesFLA();
  await loadNotifications();
  
@@ -261,7 +276,6 @@ async function loadJoueurEtDemarre(session){
  document.getElementById("app").style.display="block";
  render();
 
- // Chargement des présences en tâche de fond de manière totalement asynchrone et sécurisée
  recupererPresencesPourCouleurs();
 
  if(pendingMatch){ try{ history.replaceState(null, "", location.pathname); }catch(_){} }
@@ -269,7 +283,6 @@ async function loadJoueurEtDemarre(session){
  if(pendingMatch){ const id = pendingMatch; pendingMatch = null; openMatchById(id); }
 }
 
-// Fonction asynchrone isolée qui s'occupe de récupérer les présences pour colorier le calendrier
 async function recupererPresencesPourCouleurs() {
  if (!MY_ID) return;
  try {
@@ -279,13 +292,12 @@ async function recupererPresencesPourCouleurs() {
    data.forEach(p => {
     mesPresencesLocales[p.match_id] = p.statut;
    });
-   // Met à jour l'affichage si on est sur l'onglet calendrier
    if (currentTab === "cal" && !currentMatch) {
     render();
    }
   }
  } catch(e) {
-  console.warn("Récupération des présences en tâche de fond échouée (sans impact sur l'app) :", e);
+  console.warn("Récupération des présences en tâche de fond échouée :", e);
  }
 }
 
@@ -373,7 +385,6 @@ async function setPresence(m, statut){
  );
  if(error){ alert("Enregistrement impossible : "+error.message); return; }
  
- // Mise à jour de notre cache local de présences pour colorier l'encart date instantanément
  mesPresencesLocales[m.dbId] = statut;
  
  await loadPresences(m); render();
@@ -385,7 +396,6 @@ async function refreshEffectif(){
  if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
 }
 
-// RESTAURATION STRICTE D'ORIGINE DE setPresenceManager + CONFIRMATION MANAGER
 async function setPresenceManager(m, joueurId, statut){
  if(ROLE !== "manager") {
   alert("Action refusée : Seuls les managers peuvent modifier la présence des autres joueurs.");
@@ -393,18 +403,18 @@ async function setPresenceManager(m, joueurId, statut){
  }
  const j = effectif.find(e=>e.id===joueurId);
  const nomJoueur = j ? simplifierNom(j.nom, effectif.map(x=>x.nom)) : "ce joueur";
- if (!confirm(`Es-tu sûr de vouloir changer la présence de ${nomJoueur} ?`)) {
-  return;
- }
- const {error} = await sb.from("presences").upsert(
-  {match_id:m.dbId, joueur_id:joueurId, statut, updated_at:new Date().toISOString()},
-  {onConflict:"match_id,joueur_id"}
- );
- if(error){ alert("Modification impossible : "+error.message); return; }
- if(joueurId === MY_ID){
-  mesPresencesLocales[m.dbId] = statut;
- }
- await loadPresences(m); render();
+ 
+ showConfirm("Attention :", `Es-tu sûr de vouloir changer la présence de ${nomJoueur} ?`, async () => {
+     const {error} = await sb.from("presences").upsert(
+      {match_id:m.dbId, joueur_id:joueurId, statut, updated_at:new Date().toISOString()},
+      {onConflict:"match_id,joueur_id"}
+     );
+     if(error){ alert("Modification impossible : "+error.message); return; }
+     if(joueurId === MY_ID){
+      mesPresencesLocales[m.dbId] = statut;
+     }
+     await loadPresences(m); render();
+ });
 }
 
 async function loadPastMatchData(m){
@@ -495,12 +505,11 @@ async function voter(m, candidatId){
  await loadPastMatchData(m); render();
 }
 
-// RESTAURATION STRICTE D'ORIGINE DE matchRow
 function matchRow(m, isNext){
  const st = m.status==="past"?"past":(m.presence && ME && m.presence[ME]==="oui"?"yes":m.presence && ME && m.presence[ME]==="non"?"no":"wait");
  const homeWin = !!m.score && m.score[0]>m.score[1], awayWin = !!m.score && m.score[1]>m.score[0];
  return `<div class="mrow" data-open="${m.id}"${isNext?' id="nextMatch"':''}>
-  <div class="dblock d-${st}" data-color-match="${m.dbId || ''}"><b>${fmtDay(m.dt)}</b><span>${fmtMonAbbr(m.dt)}</span></div>
+  <div class="dblock d-${st}" data-color-match="${m.dbId || ''}"><b>${fmtDay(m.dt)}</b><span style="font-size:14px">${fmtMonAbbr(m.dt)}</span></div>
   <div class="minfo">
    ${m.comp==="Coupe"?`<div class="comp">🏆 Coupe</div>`:''}
    <div class="trow ${homeWin?'win':''}"><span>${m.domicile || m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
@@ -511,13 +520,12 @@ function matchRow(m, isNext){
 
 function viewCal(){
  return `<h2 class="title">CALENDRIER</h2>
- <div style="text-align:center;margin:-4px 0 10px"><a data-agenda="1" style="color:var(--green);font-size:12px;text-decoration:underline;cursor:pointer">📆 Ajouter à mon agenda</a></div>
+ <div style="text-align:center;margin:-4px 0 10px"><a data-agenda="1" style="color:var(--green);font-size:14px;text-decoration:underline;cursor:pointer">📆 Ajouter à mon agenda</a></div>
  <div class="sheet-card">${matches.length?matches.map((m,i)=>matchRow(m, m.status==="upcoming" && !matches.slice(0,i).some(x=>x.status==="upcoming"))).join(""):'<div class="mrow">Aucun match trouvé.</div>'}</div>`;
 }
 
-// SURLIGNAGE ET NOM GRAS ACCENTUÉ POUR PARIS ASF
 function viewRank(){
- return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 8px"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
+ return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 0"><table><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
  ${ranking.map((r,i)=>`<tr class="${r.me?'hi':''}"><td>${i+1}</td><td>${r.me?'<b>'+r.p+'</b>':r.p}</td><td><b>${r.pt}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.l}</td></tr>`).join("")}
  </table></div>`;
 }
@@ -584,7 +592,6 @@ function changeClubSort(key) {
  render();
 }
 
-// SUPPRESSION COMPLÈTE DE LA GESTION D'EFFECTIF ET DE L'ENTÊTE ET INTEGRATION TRI ET PRÉNOMS SIMPLIFIÉS
 function viewClub(){
  const jEquipe = matches.filter(m=>m.status==="past").length;
  const rows=clubRows||[]; const tot={j:jEquipe,b:rows.reduce((a,c)=>a+c.b,0),pd:rows.reduce((a,c)=>a+c.pd,0)};
@@ -593,7 +600,7 @@ function viewClub(){
    return clubSortAsc ? ' ▲' : ' ▼';
  };
  return `<h2 class="title">CLUB</h2>
- <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours (Championnat + Coupe)</div><div class="sheet-card" style="padding:6px 8px"><table><tr>
+ <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours (Championnat + Coupe)</div><div class="sheet-card" style="padding:6px 0"><table><tr>
  <th onclick="changeClubSort('n')">Joueurs${indicator('n')}</th>
  <th onclick="changeClubSort('j')">J${indicator('j')}</th>
  <th onclick="changeClubSort('b')">B${indicator('b')}</th>
@@ -617,44 +624,70 @@ function viewMatch(m){
   <div class="teamrow ${m.score&&m.score[0]>m.score[1]?'win':''}"><span>${m.domicile || m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
   <div class="teamrow ${m.score&&m.score[1]>m.score[0]?'win':''}"><span>${m.exterieur || m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
  </div>`;
+ 
  if(m.status==="upcoming"){
   if(!m.dbId){
    h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base — présence indisponible pour l'instant.</div>`;
    return h;
   }
-  const p=(m.presenceReal||{})[MY_ID];
-  const g=groupCounts(m);
   
-  // Simplification des noms pour l'affichage de la liste des présences
-  const listeNomsTous = effectif.map(x=>x.nom);
-  const simplifierNomsListe = (noms) => noms.map(n => simplifierNom(n, listeNomsTous)).join(", ") || "—";
-
-  h+=`<h3 class="sect">Présence</h3><div class="card">
-   <div class="oui-non"><button class="${p==='oui'?'yesOn':''}" data-pres="oui">OUI</button><button class="${p==='non'?'noOn':''}" data-pres="non">NON</button></div>
-   
-   <!-- En-tête compact sous format : X présents | Y absents | Z sans réponse -->
-   <div class="compact-summary">
-     <span style="color:var(--green)">${g.yes.length} Présent${g.yes.length > 1 ? 's':''}</span> | 
-     <span style="color:var(--red)">${g.no.length} Absent${g.no.length > 1 ? 's':''}</span> | 
-     <span style="color:var(--muted)">${g.wait.length} Sans réponse</span>
-   </div>
-
-   <div class="pgroup"><div class="cnt g">${g.yes.length}<span style="font-weight:600;font-size:12px">Présent</span></div><div class="names">${simplifierNomsListe(g.yes)}</div></div>
-   <div class="pgroup"><div class="cnt r">${g.no.length}<span style="font-weight:600;font-size:12px">Absent</span></div><div class="names">${simplifierNomsListe(g.no)}</div></div>
-   <div class="pgroup"><div class="cnt gy">${g.wait.length}<span style="font-weight:600;font-size:12px">Sans réponse</span></div><div class="names">${simplifierNomsListe(g.wait)}</div></div>
+  const myPresence = (m.presenceReal||{})[MY_ID];
+  
+  // Bloc de présence de l'utilisateur
+  h+=`<h3 class="sect">Ma Présence</h3><div class="card">
+   <div class="oui-non"><button class="${myPresence==='oui'?'yesOn':''}" data-pres="oui">OUI</button><button class="${myPresence==='non'?'noOn':''}" data-pres="non">NON</button></div>
   </div>`;
-  if(ROLE==="manager"){
-   h+=`<h3 class="sect">Modifier la présence (manager)</h3><div class="card">`;
-   h+=effectif.filter(j=>j.id!==MY_ID).map(j=>{
-    const pj=(m.presenceReal||{})[j.id];
-    const nomSimplifie = simplifierNom(j.nom, listeNomsTous);
-    return `<div class="voteopt"><span>${nomSimplifie}</span><span class="seg">
-     <button class="segbtn ${pj==='oui'?'on-yes':''}" data-mgr-pres="${j.id}" data-mgr-val="oui">OUI</button>
-     <button class="segbtn ${pj==='non'?'on-no':''}" data-mgr-pres="${j.id}" data-mgr-val="non">NON</button>
-    </span></div>`;
-   }).join("");
-   h+=`</div>`;
-  }
+   
+  // Préparation de la liste complète triée
+  const listeNomsTous = effectif.map(x=>x.nom);
+  let joueursTries = effectif.map(j => {
+      const pj = (m.presenceReal || {})[j.id] || "wait";
+      const sortScore = pj === "oui" ? 1 : (pj === "non" ? 2 : 3);
+      const nomSimplifie = simplifierNom(j.nom, listeNomsTous);
+      return { ...j, pj, sortScore, nomSimplifie };
+  });
+  
+  joueursTries.sort((a, b) => {
+      if (a.sortScore !== b.sortScore) return a.sortScore - b.sortScore;
+      return a.nomSimplifie.localeCompare(b.nomSimplifie, "fr");
+  });
+
+  const counts = { oui: 0, non: 0, wait: 0 };
+  joueursTries.forEach(j => {
+      if(j.pj === 'oui') counts.oui++;
+      else if(j.pj === 'non') counts.non++;
+      else counts.wait++;
+  });
+
+  h+=`<h3 class="sect">Effectif</h3>`;
+  h+=`<div class="compact-summary">
+       <span style="color:var(--green)">${counts.oui} Présent${counts.oui > 1 ? 's':''}</span> <span style="color:var(--muted)">|</span> 
+       <span style="color:var(--red)">${counts.non} Absent${counts.non > 1 ? 's':''}</span> <span style="color:var(--muted)">|</span> 
+       <span style="color:var(--muted)">${counts.wait} Sans réponse</span>
+     </div>`;
+  
+  // Liste unifiée des joueurs
+  h+=`<div class="card" style="padding:0">`;
+  joueursTries.forEach(j => {
+      h += `<div class="voteopt" style="padding:10px 14px"><span>${esc(j.nomSimplifie)}</span><span class="seg">`;
+      
+      if (ROLE === "manager") {
+          h += `<button class="segbtn ${j.pj==='oui'?'on-yes':''}" data-mgr-pres="${j.id}" data-mgr-val="oui">OUI</button>
+                <button class="segbtn ${j.pj==='non'?'on-no':''}" data-mgr-pres="${j.id}" data-mgr-val="non">NON</button>`;
+      } else {
+          // Vue en lecture seule
+          if (j.pj === 'oui') {
+              h += `<button class="segbtn on-yes" style="pointer-events:none">OUI</button><button class="segbtn" style="pointer-events:none;opacity:0.3">NON</button>`;
+          } else if (j.pj === 'non') {
+              h += `<button class="segbtn" style="pointer-events:none;opacity:0.3">OUI</button><button class="segbtn on-no" style="pointer-events:none">NON</button>`;
+          } else {
+              h += `<button class="segbtn" style="pointer-events:none;opacity:0.4">OUI</button><button class="segbtn" style="pointer-events:none;opacity:0.4">NON</button>`;
+          }
+      }
+      h += `</span></div>`;
+  });
+  h+=`</div>`;
+
  } else if(!m.dbId){
   h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base.</div>`;
  } else {
@@ -662,7 +695,7 @@ function viewMatch(m){
   if(ROLE==="manager"){
    const hSave = h; h = "";
    h+=`<h3 class="sect">${m.feuilleValidee?"Feuille de match (manager)":"Qui a réellement joué ?"}</h3><div class="card">`;
-   h+=`<div style="font-size:12px;color:var(--muted);margin-bottom:8px">${m.feuilleValidee?"Coche les joueurs qui ont réellement joué.":"Pré-coché selon les présences déclarées — ajuste si besoin puis valide."}</div>`;
+   h+=`<div style="font-size:14px;color:var(--muted);margin-bottom:8px">${m.feuilleValidee?"Coche les joueurs qui ont réellement joué.":"Pré-coché selon les présences déclarées — ajuste si besoin puis valide."}</div>`;
    h+=effectif.map(j=>{
     const joue = !!(m.validationDraft||{}).hasOwnProperty(j.id) ? !!m.validationDraft[j.id] : false;
     const row = (m.presenceAll||[]).find(r=>r.joueur_id===j.id);
@@ -671,7 +704,7 @@ function viewMatch(m){
     return `<label class="voteopt chk"><span style="display:flex;align-items:center;gap:12px"><input type="checkbox" data-toggle-joue="${j.id}" ${joue?"checked":""}><span>${nomSimplifie}</span></span><span class="tag ${decl[0]}">${decl[1]}</span></label>`;
    }).join("");
    const nbSel = Object.values(m.validationDraft||{}).filter(Boolean).length;
-   h+=`<div style="margin-top:10px;font-weight:700;font-size:13px">${nbSel} joueur${nbSel>1?"s":""} sélectionné${nbSel>1?"s":""}</div>`;
+   h+=`<div style="margin-top:10px;font-weight:700;font-size:15px">${nbSel} joueur${nbSel>1?"s":""} sélectionné${nbSel>1?"s":""}</div>`;
    h+=`<button class="votebtn" style="margin-top:10px" data-valider-feuille="1">${m.feuilleValidee?'Mettre à jour la feuille':'Valider la feuille de match'}</button>`;
    h+=`</div>`;
    feuilleHtml = h; h = hSave;
@@ -700,7 +733,7 @@ function viewMatch(m){
     h+=`<div class="small" style="color:var(--muted)">Seuls les joueurs de la feuille de match peuvent voter.</div>`;
    }
    const ferme = m.vote.fermeLe ? "le "+new Date(m.vote.fermeLe).toLocaleString("fr-FR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).replace(":","h") : "dans 48 h";
-   h+=`<div style="font-size:11.5px;color:var(--muted);margin-top:8px">Résultats visibles à la clôture (${ferme}), ou dès que tous les joueurs de la feuille ont voté.</div>`;
+   h+=`<div style="font-size:14px;color:var(--muted);margin-top:8px">Résultats visibles à la clôture (${ferme}), ou dès que tous les joueurs de la feuille ont voté.</div>`;
   } else {
    const top = Object.entries(m.voteCounts||{}).sort((a,b)=>b[1]-a[1]);
    if(top.length){
@@ -721,8 +754,8 @@ function viewMatch(m){
    ${m.playersOk.map(j=>{if(!m.statsDraft[j.id]) m.statsDraft[j.id]={buts:0,pd:0,gardien:false}; const s=m.statsDraft[j.id];
     const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
     return `<tr><td>${nomSimplifie}</td>
-     <td><input type="number" min="0" value="${s.buts}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
-     <td><input type="number" min="0" value="${s.pd}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px"></td>
+     <td><input type="number" min="0" value="${s.buts}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px;font-size:16px"></td>
+     <td><input type="number" min="0" value="${s.pd}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px;font-size:16px"></td>
      <td><span data-stat-gardien="${j.id}" style="cursor:pointer">${s.gardien?'✓':'—'}</span></td></tr>`;}).join("")}
    </table>
    <button class="votebtn" style="margin-top:10px" data-save-stats="1">Enregistrer les stats</button>`;
@@ -749,7 +782,6 @@ function render(){
  badge.style.display = unread?"flex":"none"; badge.textContent = unread;
  bind();
 
- // Coloration dynamique de l'encart date du calendrier
  appliqCouleursCalendrier();
 
  if(currentTab==="cal" && !currentMatch){
@@ -758,21 +790,21 @@ function render(){
  }
 }
 
-// RESTAURATION STRICTE D'ORIGINE DE appliqCouleursCalendrier
 function appliqCouleursCalendrier(){
  if(currentTab !== "cal" || currentMatch) return;
  document.querySelectorAll("[data-color-match]").forEach(el => {
   const dbId = el.dataset.colorMatch;
   if(!dbId) return;
   
-  // Lit l'état de présence locale
+  const m = matches.find(x => x.dbId === dbId);
   const statut = mesPresencesLocales[dbId];
   
-  // Réinitialise d'abord les styles
   el.className = "dblock";
   
-  // Applique la couleur souhaitée : oui = vert (d-yes), non = rouge (d-no), sinon bleu foncé (d-wait)
-  if(statut === "oui") {
+  // Règle: matchs joués en gris (priorité absolue) sinon couleur selon présence
+  if(m && m.status === "past") {
+   el.classList.add("d-past");
+  } else if(statut === "oui") {
    el.classList.add("d-yes");
   } else if(statut === "non") {
    el.classList.add("d-no");
@@ -922,9 +954,9 @@ async function desactiverPush(){
 async function renderPushZone(){
  const z = document.getElementById("pushZone"); if(!z) return;
  const st = await pushState();
- const note = t => `<div style="font-size:12px;opacity:.9">${t}</div>`;
- z.innerHTML = st==="on" ? `<div style="font-size:13px;font-weight:600">🔔 Notifications activées sur cet appareil</div><a href="#" id="pushOff">Désactiver</a>`
-  : st==="off" ? `<button id="pushOn" style="width:100%;padding:11px;border-radius:10px;border:none;background:#fff;color:var(--green);font-weight:700">🔔 Activer les notifications</button>`
+ const note = t => `<div style="font-size:14px;opacity:.9">${t}</div>`;
+ z.innerHTML = st==="on" ? `<div style="font-size:16px;font-weight:600">🔔 Notifications activées sur cet appareil</div><a href="#" id="pushOff" style="font-size:16px">Désactiver</a>`
+  : st==="off" ? `<button id="pushOn" style="width:100%;padding:14px;border-radius:10px;border:none;background:#fff;color:var(--green);font-weight:700;font-size:17px">🔔 Activer les notifications</button>`
   : st==="denied" ? note("Notifications bloquées : autorise-les dans les réglages de ton navigateur ou de ton appareil.")
   : st==="ios-install" ? note("Sur iPhone : touche Partager puis « Sur l'écran d'accueil », ouvre l'app depuis son icône, puis reviens ici pour activer les notifications.")
   : note("Notifications push indisponibles ici (essaie depuis l'app installée).");
@@ -958,7 +990,7 @@ function openProfil(){
   <div style="font-weight:800;letter-spacing:1px;margin-top:-30px">PROFIL</div>
   <div class="av2">${initials(ME)}</div><h4>${ME.toUpperCase()}</h4><a>${MY_EMAIL}</a>
   <div id="pushZone" style="margin:22px 20px 0"></div>
-  <div style="font-size:12px;opacity:.9;margin-top:20px">Thème</div>
+  <div style="font-size:14px;opacity:.9;margin-top:20px">Thème</div>
   <div class="roleswitch" style="margin-top:6px">
    <button data-theme-set="light" class="${theme==='light'?'on':''}">☀️ Clair</button>
    <button data-theme-set="dark" class="${theme==='dark'?'on':''}">🌙 Sombre</button>
