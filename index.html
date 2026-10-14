@@ -339,9 +339,9 @@ const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","
 const fmtTime=d=>d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 const fmtDay=d=>d.getDate().toString().padStart(2,"0");
 const fmtMonAbbr=d=>MOIS[d.getMonth()].slice(0,3)+".";
-const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()} ${d.getFullYear()}`;
+const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()}${d.getFullYear()}`;
 
-const sourceId = m => `${m.competition}|${m.domicile}|${m.exterieur}|${m.date}`;
+const sourceId = m => `${m.competition}\vert{}${m.domicile}|${m.exterieur}\vert{}${m.date}`;
 
 async function loadDonneesFLA(){
  try{
@@ -483,7 +483,7 @@ function onStatInput(el, champ, id){
   const max = Math.max(0, m.scoreOfficiel - totalStat(m, champ, id));
   if(v>max){
    v = max; el.value = String(max);
-   avert = `Maximum ${max} : le total des ${champ==="buts"?"buts":"passes décisives"} ne peut pas dépasser le score de l'équipe (${m.scoreOfficiel}).`;
+   avert = `Maximum ${max} : le total des${champ==="buts"?"buts":"passes décisives"} ne peut pas dépasser le score de l'équipe (${m.scoreOfficiel}).`;
   }
  }
  if(el.value!=="" && String(v)!==el.value) el.value = String(v);
@@ -505,3 +505,519 @@ async function enregistrerStats(m){
 async function validerFeuille(m){
  const writes = Object.entries(m.validationDraft).map(([joueur_id, a_reellement_joue])=>({match_id:m.dbId, joueur_id, a_reellement_joue}));
  const r1 = await sb.from("presences").upsert(writes, {onConflict:"match_id,joueur_id"});
+ if(r1.error){ alert("Validation impossible : "+r1.error.message); return; }
+ const r2 = await sb.from("matchs").update({feuille_validee:true}).eq("id", m.dbId).select("id");
+ if(r2.error || !r2.data || !r2.data.length){ alert("Validation impossible : "+(r2.error?r2.error.message:"droits insuffisants (SQL add_feuille_validee.sql exécuté ?)")); return; }
+ m.feuilleValidee = true;
+ await loadPastMatchData(m); render();
+}
+async function voter(m, candidatId){
+ const {error} = await sb.from("votes_homme_du_match").upsert({match_id:m.dbId, votant_id:MY_ID, candidat_id:candidatId}, {onConflict:"match_id,votant_id"});
+ if(error){ alert("Vote impossible : "+error.message); return; }
+ await loadPastMatchData(m); render();
+}
+
+function matchRow(m, isNext){
+ const st = m.status==="past"?"past":(m.presence && ME && m.presence[ME]==="oui"?"yes":m.presence && ME && m.presence[ME]==="non"?"no":"wait");
+ const homeWin = !!m.score && m.score[0]>m.score[1], awayWin = !!m.score && m.score[1]>m.score[0];
+ return `<div class="mrow" data-open="${m.id}"${isNext?' id="nextMatch"':''}>
+  <div class="dblock d-${st}" data-color-match="${m.dbId \vert{}\vert{} ''}"><b>${fmtDay(m.dt)}</b><span style="font-size:14px">${fmtMonAbbr(m.dt)}</span></div>
+  <div class="minfo">
+   ${m.comp==="Coupe"?`<div class="comp">🏆 Coupe</div>`:''}
+   <div class="trow ${homeWin?'win':''}"><span>${m.domicile \vert{}\vert{} m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+   <div class="trow ${awayWin?'win':''}"><span>${m.exterieur \vert{}\vert{} m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+   <div class="venue">${fmtTime(m.dt)} ·${m.venue}</div>
+  </div></div>`;
+}
+
+function viewCal(){
+ return `<h2 class="title">CALENDRIER</h2>
+ <div style="text-align:center;margin:-4px 0 10px"><a data-agenda="1" style="color:var(--green);font-size:14px;text-decoration:underline;cursor:pointer">📆 Ajouter à mon agenda</a></div>
+ <div class="sheet-card">${matches.length?matches.map((m,i)=>matchRow(m, m.status==="upcoming" && !matches.slice(0,i).some(x=>x.status==="upcoming"))).join(""):'<div class="mrow">Aucun match trouvé.</div>'}</div>`;
+}
+
+function viewRank(){
+ return `<h2 class="title">CLASSEMENT</h2><div class="sheet-card" style="padding:6px 0"><table class="rank-table"><tr><th>#</th><th>Équipe</th><th>Pts</th><th>J</th><th>G</th><th>N</th><th>P</th></tr>
+ ${ranking.map((r,i)=>`<tr class="${r.me?'hi':''}"><td>${i+1}</td><td>${r.me?'<b>'+r.p+'</b>':r.p}</td><td><b>${r.pt}</b></td><td>${r.j}</td><td>${r.g}</td><td>${r.n}</td><td>${r.l}</td></tr>`).join("")}
+ </table></div>`;
+}
+
+let clubRows=null, clubErr=null;
+async function refreshClubStats(){
+ const ids = matches.filter(m=>m.dbId).map(m=>m.dbId);
+ const [r1,r2,r3,r4] = await Promise.all([
+  ids.length ? sb.from("presences").select("match_id,joueur_id").in("match_id", ids).eq("a_reellement_joue", true) : {data:[]},
+  ids.length ? sb.from("stats_joueurs").select("match_id,joueur_id,buts,passes_decisives,gardien").in("match_id", ids) : {data:[]},
+  ids.length ? sb.rpc("hommes_du_match", {p_matchs: ids}) : {data:[]},
+  sb.from("joueurs").select("id,nom,actif"),
+ ]);
+ const err = [r1,r2,r3,r4].find(r=>r.error);
+ if(err){ clubErr = err.error.message; return; }
+ clubErr = null;
+ const byId = {}; matches.forEach(m=>{ if(m.dbId) byId[m.dbId]=m; });
+ const tot = {};
+ const row = id => tot[id] || (tot[id] = {j:0,b:0,pd:0,gb:0,hm:0});
+ const parMatch = {};
+ (r1.data||[]).forEach(p=>{
+  const m = byId[p.match_id]; if(!m || !m.feuilleValidee) return;
+  row(p.joueur_id).j++; (parMatch[p.match_id] = parMatch[p.match_id] || []).push(p.joueur_id);
+ });
+ (r2.data||[]).forEach(st=>{
+  const m = byId[st.match_id]; if(!m || !m.statsRemplies) return;
+  const r = row(st.joueur_id); r.b += st.buts||0; r.pd += st.passes_decisives||0; if(st.gardien) r.gb++;
+ });
+ (r3.data||[]).forEach(h=>{ row(h.joueur_id).hm += h.hm; });
+ 
+ const listeTousNoms = (r4.data||[]).map(j => j.nom);
+
+ clubRows = (r4.data||[])
+  .filter(j=>j.actif || (tot[j.id] && tot[j.id].j>0))
+  .map(j=> {
+    const rawName = j.nom;
+    const simplified = simplifierNom(rawName, listeTousNoms);
+    return Object.assign({id:j.id, rawName: rawName, n:simplified}, tot[j.id] || {j:0,b:0,pd:0,gb:0,hm:0});
+  });
+ trierClubRows();
+}
+
+function trierClubRows() {
+ if (!clubRows) return;
+ clubRows.sort((a,b) => {
+   let valA = a[clubSortKey];
+   let valB = b[clubSortKey];
+   if (typeof valA === 'string') {
+     return clubSortAsc ? valA.localeCompare(valB, "fr") : valB.localeCompare(valA, "fr");
+   } else {
+     return clubSortAsc ? valA - valB : valB - valA;
+   }
+ });
+}
+
+function changeClubSort(key) {
+ if (clubSortKey === key) {
+   clubSortAsc = !clubSortAsc;
+ } else {
+   clubSortKey = key;
+   clubSortAsc = (key === 'n') ? true : false;
+ }
+ trierClubRows();
+ render();
+}
+
+function viewClub(){
+ const jEquipe = matches.filter(m=>m.status==="past").length;
+ const rows=clubRows||[]; const tot={j:jEquipe,b:rows.reduce((a,c)=>a+c.b,0),pd:rows.reduce((a,c)=>a+c.pd,0)};
+ const indicator = (key) => {
+   if (clubSortKey !== key) return '';
+   return clubSortAsc ? ' ▲' : ' ▼';
+ };
+ return `<h2 class="title">CLUB</h2>
+ <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours (Championnat + Coupe)</div><div class="sheet-card" style="padding:6px 0"><table class="club-table"><tr>
+ <th onclick="changeClubSort('n')">Joueurs${indicator('n')}</th>
+ <th onclick="changeClubSort('j')">J${indicator('j')}</th>
+ <th onclick="changeClubSort('b')">B${indicator('b')}</th>
+ <th onclick="changeClubSort('pd')">PD${indicator('pd')}</th>
+ <th onclick="changeClubSort('gb')">GB${indicator('gb')}</th>
+ <th onclick="changeClubSort('hm')">HM${indicator('hm')}</th></tr>${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
+  :clubRows===null?'<tr><td colspan="6" style="text-align:center;color:var(--muted)">Chargement des statistiques…</td></tr>'
+  :rows.map(p=>`<tr><td>${esc(p.n)}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
+ <tr class="tot"><td>PARIS ASF</td><td>${tot.j}</td><td>${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
+ </table></div>`;
+}
+
+function viewMatch(m){
+ let h=`<div class="backbar"><button class="bk" data-back="1">←</button></div>
+ <div class="mhead"><div class="dt">${fmtDateFull(m.dt)}</div><div class="tm">${fmtTime(m.dt)}</div>
+  <a data-venue="1">${m.venue}</a>${m.comp==="Coupe"?`<div class="comp2">🏆 Coupe</div>`:''}
+ </div>
+ <div class="card">
+  <div class="teamrow ${m.score&&m.score[0]>m.score[1]?'win':''}"><span>${m.domicile \vert{}\vert{} m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+  <div class="teamrow ${m.score&&m.score[1]>m.score[0]?'win':''}"><span>${m.exterieur \vert{}\vert{} m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+ </div>`;
+ 
+ if(m.status==="upcoming"){
+  if(!m.dbId){
+   h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base — présence indisponible pour l'instant.</div>`;
+   return h;
+  }
+  
+  const myPresence = (m.presenceReal||{})[MY_ID];
+  
+  h+=`<h3 class="sect">Ma Présence</h3><div class="card">
+   <div class="oui-non"><button class="${myPresence==='oui'?'yesOn':''}" data-pres="oui">OUI</button><button class="${myPresence==='non'?'noOn':''}" data-pres="non">NON</button></div>
+  </div>`;
+   
+  const listeNomsTous = effectif.map(x=>x.nom);
+  let joueursTries = effectif.map(j => {
+      const pj = (m.presenceReal || {})[j.id] || "wait";
+      const sortScore = pj === "oui" ? 1 : (pj === "non" ? 2 : 3);
+      const nomSimplifie = simplifierNom(j.nom, listeNomsTous);
+      return { ...j, pj, sortScore, nomSimplifie };
+  });
+  
+  joueursTries.sort((a, b) => {
+      if (a.sortScore !== b.sortScore) return a.sortScore - b.sortScore;
+      return a.nomSimplifie.localeCompare(b.nomSimplifie, "fr");
+  });
+
+  const counts = { oui: 0, non: 0, wait: 0 };
+  joueursTries.forEach(j => {
+      if(j.pj === 'oui') counts.oui++;
+      else if(j.pj === 'non') counts.non++;
+      else counts.wait++;
+  });
+
+  h+=`<h3 class="sect">Effectif</h3>`;
+  h+=`<div class="compact-summary">
+       <span style="color:var(--green)">${counts.oui} Présent${counts.oui > 1 ? 's':''}</span> <span style="color:var(--muted)">|</span> 
+       <span style="color:var(--red)">${counts.non} Absent${counts.non > 1 ? 's':''}</span> <span style="color:var(--muted)">|</span> 
+       <span style="color:var(--muted)">${counts.wait} Sans réponse</span>
+     </div>`;
+  
+  h+=`<div class="card" style="padding:0">`;
+  joueursTries.forEach(j => {
+      h += `<div class="voteopt" style="padding:10px 14px"><span>${esc(j.nomSimplifie)}</span><span class="seg">`;
+      
+      if (ROLE === "manager") {
+          h += `<button class="segbtn ${j.pj==='oui'?'on-yes':''}" data-mgr-pres="${j.id}" data-mgr-val="oui">OUI</button>
+                <button class="segbtn ${j.pj==='non'?'on-no':''}" data-mgr-pres="${j.id}" data-mgr-val="non">NON</button>`;
+      } else {
+          if (j.pj === 'oui') {
+              h += `<button class="segbtn on-yes" style="pointer-events:none">OUI</button><button class="segbtn" style="pointer-events:none;opacity:0.3">NON</button>`;
+          } else if (j.pj === 'non') {
+              h += `<button class="segbtn" style="pointer-events:none;opacity:0.3">OUI</button><button class="segbtn on-no" style="pointer-events:none">NON</button>`;
+          } else {
+              h += `<button class="segbtn" style="pointer-events:none;opacity:0.4">OUI</button><button class="segbtn" style="pointer-events:none;opacity:0.4">NON</button>`;
+          }
+      }
+      h += `</span></div>`;
+  });
+  h+=`</div>`;
+
+ } else if(!m.dbId){
+  h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base.</div>`;
+ } else {
+  let feuilleHtml = "";
+  if(ROLE==="manager"){
+   const hSave = h; h = "";
+   h+=`<h3 class="sect">${m.feuilleValidee?"Feuille de match (manager)":"Qui a réellement joué ?"}</h3><div class="card">`;
+   h+=`<div style="font-size:14px;color:var(--muted);margin-bottom:8px">${m.feuilleValidee?"Coche les joueurs qui ont réellement joué.":"Pré-coché selon les présences déclarées — ajuste si besoin puis valide."}</div>`;
+   h+=effectif.map(j=>{
+    const joue = !!(m.validationDraft||{}).hasOwnProperty(j.id) ? !!m.validationDraft[j.id] : false;
+    const row = (m.presenceAll||[]).find(r=>r.joueur_id===j.id);
+    const decl = row && row.statut==="oui" ? ["g","Avait dit OUI"] : row && row.statut==="non" ? ["r","Avait dit NON"] : ["grey","Sans réponse"];
+    const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
+    return `<label class="voteopt chk"><span style="display:flex;align-items:center;gap:12px"><input type="checkbox" data-toggle-joue="${j.id}" ${joue?"checked":""}><span>${nomSimplifie}</span></span><span class="tag ${decl[0]}">${decl[1]}</span></label>`;
+   }).join("");
+   const nbSel = Object.values(m.validationDraft||{}).filter(Boolean).length;
+   h+=`<div style="margin-top:10px;font-weight:700;font-size:15px">${nbSel} joueur${nbSel>1?"s":""} sélectionné${nbSel>1?"s":""}</div>`;
+   h+=`<button class="votebtn" style="margin-top:10px" data-valider-feuille="1">${m.feuilleValidee?'Mettre à jour la feuille':'Valider la feuille de match'}</button>`;
+   h+=`</div>`;
+   feuilleHtml = h; h = hSave;
+  }
+  if(!m.feuilleValidee) h += feuilleHtml;
+  h+=`<h3 class="sect">Homme du match</h3><div class="card">`;
+  if(!m.feuilleValidee){
+   h+=`<div class="small" style="color:var(--muted)">En attente de la feuille de match par un manager.</div>`;
+  } else if(!m.statsRemplies){
+   h+=`<div class="small" style="color:var(--muted)">En attente de la saisie des stats par un manager.</div>`;
+  } else if(m.voteErr){
+   h+=`<div class="small" style="color:var(--red)">Vote indisponible : ${esc(m.voteErr)} (script correctifs_vote_stats.sql exécuté ?)</div>`;
+  } else if(!m.playersOk || m.playersOk.length===0){
+   h+=`<div class="small" style="color:var(--muted)">Aucun joueur retenu sur ce match.</div>`;
+  } else if(!(m.vote && m.vote.ouvert)){
+   h+=`<div class="small" style="color:var(--muted)">Le vote s'ouvrira dès que la feuille de match et les stats seront validées.</div>`;
+  } else if(!m.vote.clos){
+   const jeSuisCandidat = m.playersOk.some(j=>j.id===MY_ID);
+   if(jeSuisCandidat){
+    h+=`<div class="small" style="margin-bottom:6px">Vote ouvert : tu peux le modifier jusqu'à la clôture.</div>`;
+    h+=m.playersOk.filter(j=>j.id!==MY_ID).map(j=> {
+      const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
+      return `<div class="voteopt"><span>${esc(nomSimplifie)}</span><button data-vote="${j.id}" class="${m.myVote===j.id?'yesOn':''}" style="${m.myVote===j.id?'background:var(--green);color:#fff':''}">${m.myVote===j.id?'Voté ✓':'Voter'}</button></div>`;
+    }).join("");
+   } else {
+    h+=`<div class="small" style="color:var(--muted)">Seuls les joueurs de la feuille de match peuvent voter.</div>`;
+   }
+   const ferme = m.vote.fermeLe ? "le "+new Date(m.vote.fermeLe).toLocaleString("fr-FR",{weekday:"long",day:"numeric",month:"long",hour:"2-digit",minute:"2-digit"}).replace(":","h") : "dans 48 h";
+   h+=`<div style="font-size:14px;color:var(--muted);margin-top:8px">Résultats visibles à la clôture (${ferme}), ou dès que tous les joueurs de la feuille ont voté.</div>`;
+  } else {
+   const top = Object.entries(m.voteCounts||{}).sort((a,b)=>b[1]-a[1]);
+   if(top.length){
+    const max = top[0][1], winners = top.filter(([_,v])=>v===max);
+    h+=`<div class="small" style="margin-bottom:6px">Vote clos.</div>`+winners.map(([id,v])=>{ const j = effectif.find(e=>e.id===id), nom = j?j.nom:"Joueur retiré";
+     const nomSimplifie = simplifierNom(nom, effectif.map(x=>x.nom));
+     return `<div class="winner"><div class="av">${esc(initials(nom))}</div><div><b>${esc(nomSimplifie)}</b><br><i>${v} vote${v>1?"s":""}</i></div></div>`; }).join("<br>");
+   } else {
+    h+=`<div class="small" style="color:var(--muted)">Vote clos : pas de vote → pas d'homme du match pour cette rencontre.</div>`;
+   }
+  }
+  h+=`</div><h3 class="sect">Statistiques (${m.comp})</h3><div class="card" style="padding:8px">`;
+  if(!m.playersOk || m.playersOk.length===0){
+   h+=`<div class="small" style="color:var(--muted)">Pas encore de joueurs validés.</div>`;
+  } else if(ROLE==="manager"){
+   h+=`${m.scoreOfficiel!==null?`<div id="statsInfo" class="small" style="display:none;margin-bottom:8px;font-weight:700;color:var(--red)"></div>`:`<div class="small" style="margin-bottom:8px;color:var(--red)">Score officiel indisponible : contrôle impossible.</div>`}
+   <table class="stats-match-table"><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+   ${m.playersOk.map(j=>{if(!m.statsDraft[j.id]) m.statsDraft[j.id]={buts:0,pd:0,gardien:false}; const s=m.statsDraft[j.id];
+    const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
+    return `<tr><td>${nomSimplifie}</td>
+     <td><input type="number" min="0" value="${s.buts}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-buts="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px;font-size:16px"></td>
+     <td><input type="number" min="0" value="${s.pd}" max="${m.scoreOfficiel!==null?m.scoreOfficiel:''}" inputmode="numeric" data-stat-pd="${j.id}" style="width:40px;text-align:center;background:var(--chipbg);color:var(--text);border:1px solid var(--line);border-radius:6px;font-size:16px"></td>
+     <td><span data-stat-gardien="${j.id}" style="cursor:pointer">${s.gardien?'✓':'—'}</span></td></tr>`;}).join("")}
+   </table>
+   <button class="votebtn" style="margin-top:10px" data-save-stats="1">Enregistrer les stats</button>`;
+  } else {
+   <table class="stats-match-table"><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+   ${m.playersOk.map(j=>{const s=m.statsDraft[j.id]||{buts:0,pd:0,gardien:false};
+    const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
+    return `<tr><td>${nomSimplifie}</td><td>${s.buts}</td><td>${s.pd}</td><td>${s.gardien?'✓':'—'}</td></tr>`;}).join("")}
+   </table>`;
+  }
+  h+=`</div>`;
+  if(m.feuilleValidee) h += feuilleHtml;
+ }
+ return h;
+}
+
+function render(){
+ document.getElementById("main").innerHTML = currentMatch ? viewMatch(currentMatch)
+  : currentTab==="cal" ? viewCal() : currentTab==="rank" ? viewRank() : viewClub();
+ [...document.querySelectorAll("nav button")].forEach(b=>b.classList.toggle("active", !currentMatch && b.dataset.tab===currentTab));
+ document.getElementById("avatarBtn").textContent = initials(ME);
+ const unread = notifs.filter(n=>!n.lu).length;
+ const badge = document.getElementById("bellBadge");
+ badge.style.display = unread?"flex":"none"; badge.textContent = unread;
+ bind();
+
+ appliqCouleursCalendrier();
+
+ if(currentTab==="cal" && !currentMatch){
+  if(savedScroll!==null){ try{ window.scrollTo(0, savedScroll); }catch(_){} savedScroll = null; }
+  else { const nm = document.getElementById("nextMatch"); if(nm) nm.scrollIntoView({block:"center"}); }
+ }
+}
+
+function appliqCouleursCalendrier(){
+ if(currentTab !== "cal" || currentMatch) return;
+ document.querySelectorAll("[data-color-match]").forEach(el => {
+  const dbId = el.dataset.colorMatch;
+  if(!dbId) return;
+  
+  const m = matches.find(x => x.dbId === dbId);
+  const statut = mesPresencesLocales[dbId];
+  
+  el.className = "dblock";
+  
+  if(m && m.status === "past") {
+   el.classList.add("d-past");
+  } else if(statut === "oui") {
+   el.classList.add("d-yes");
+  } else if(statut === "non") {
+   el.classList.add("d-no");
+  } else {
+   el.classList.add("d-wait");
+  }
+ });
+}
+
+let navDepth = 0, overlay = null, pendingTab = null, savedScroll = null;
+const uiState = ()=>({d:navDepth, tab:currentTab, match:currentMatch?currentMatch.id:null, overlay,
+  modal: !!document.querySelector(".modalbg") || document.getElementById("sheet").classList.contains("open")});
+function navPush(){ navDepth++; try{ history.pushState(uiState(), ""); return true; }catch(_){ navDepth--; return false; } }
+function navReplace(){ try{ history.replaceState(uiState(), ""); }catch(_){} }
+function navBack(direct){ if(navDepth>0) history.back(); else direct(); }
+function closeSheet(){ document.getElementById("sheet").classList.remove("open"); document.getElementById("ov2").classList.remove("open"); }
+window.addEventListener("popstate", e=>{
+ if(!ME) return;
+ const st = e.state || {d:0, tab:"cal", match:null, overlay:null, modal:false};
+ navDepth = st.d || 0;
+ if(!st.modal){ document.querySelectorAll(".modalbg").forEach(x=>x.remove()); closeSheet(); }
+ document.getElementById("notifOv").classList.remove("open"); document.getElementById("profOv").classList.remove("open"); overlay = null;
+ currentTab = st.tab || "cal";
+ currentMatch = st.match ? (matches.find(m=>m.id===st.match) || null) : null;
+ render();
+ if(pendingTab){ const t = pendingTab; pendingTab = null; if(t!=="cal") goTab(t); }
+});
+function goTab(t){
+ savedScroll = null;
+ if(currentMatch){
+  if(navDepth>0){ pendingTab = t; history.go(-navDepth); return; }
+  currentMatch = null;
+ }
+ if(t===currentTab){ render(); }
+ else if(t==="cal"){ if(navDepth>0){ history.back(); return; } currentTab = "cal"; render(); }
+ else { currentTab = t; if(navDepth===0) navPush(); else navReplace(); render(); }
+ if(currentTab==="club") refreshClubStats().then(()=>{ if(currentTab==="club" && !currentMatch) render(); });
+}
+async function openMatch(m, {replace=false}={}){
+ if(!m) return;
+ if(!currentMatch && currentTab==="cal") savedScroll = window.scrollY;
+ currentMatch = m; render();
+ if(replace) navReplace(); else navPush();
+ try{ window.scrollTo(0,0); }catch(_){}
+ if(m.dbId){
+  if(m.status==="upcoming") await loadPresences(m); else await loadPastMatchData(m);
+  if(currentMatch===m) render();
+ }
+}
+function openMatchById(dbId, opts){
+ const m = matches.find(x=>x.dbId===dbId);
+ if(m) openMatch(m, opts); else alert("Ce match n'est plus disponible dans le calendrier.");
+}
+function handleSwMessage(ev){
+ if(!ev.data || ev.data.type!=="navigate") return;
+ const id = new URL(ev.data.url, location.href).searchParams.get("match");
+ if(!id) return;
+ if(!ME){ pendingMatch = id; return; }
+ openMatchById(id);
+}
+if("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", handleSwMessage);
+
+function bind(){
+ document.querySelectorAll("[data-open]").forEach(el=>el.onclick=()=>openMatch(matches.find(m=>m.id==el.dataset.open)));
+ const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>navBack(()=>{ currentMatch=null; render(); });
+ document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
+ document.querySelectorAll("[data-mgr-pres]").forEach(b=>b.onclick=()=>setPresenceManager(currentMatch, b.dataset.mgrPres, b.dataset.mgrVal));
+ document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
+ document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onchange=()=>{
+  currentMatch.validationDraft[el.dataset.toggleJoue] = el.checked;
+  render();
+ });
+ const vf=document.querySelector("[data-valider-feuille]"); if(vf) vf.onclick=()=>validerFeuille(currentMatch);
+ document.querySelectorAll("[data-stat-buts]").forEach(el=>el.oninput=()=>onStatInput(el,"buts",el.dataset.statButs));
+ document.querySelectorAll("[data-stat-pd]").forEach(el=>el.oninput=()=>onStatInput(el,"pd",el.dataset.statPd));
+ majStatsInfo("");
+ document.querySelectorAll("[data-stat-gardien]").forEach(el=>el.onclick=()=>{
+  const id=el.dataset.statGardien; currentMatch.statsDraft[id].gardien=!currentMatch.statsDraft[id].gardien; render();
+ });
+ const ss=document.querySelector("[data-save-stats]"); if(ss) ss.onclick=()=>enregistrerStats(currentMatch);
+ document.querySelectorAll("[data-toggle-role]").forEach(el=>el.onclick=()=>basculerRole(el.dataset.toggleRole));
+ document.querySelectorAll("[data-remove-joueur]").forEach(el=>el.onclick=()=>retirerJoueur(el.dataset.removeJoueur));
+ const rJ=document.getElementById("rJoueur"), rM=document.getElementById("rManager");
+ if(rJ&&rM){ rJ.onclick=()=>{rJ.classList.add("yesOn"); rM.classList.remove("yesOn");}; rM.onclick=()=>{rM.classList.add("yesOn"); rJ.classList.remove("yesOn");}; }
+ const aj=document.querySelector("[data-add-joueur]"); if(aj) aj.onclick=()=>{
+  const nom=document.getElementById("newNom").value.trim();
+  const email=document.getElementById("newEmail").value.trim();
+  const role=document.getElementById("rManager").classList.contains("yesOn")?"manager":"joueur";
+  ajouterJoueur(nom, email, role);
+ };
+ const v=document.querySelector("[data-venue]"); if(v) v.onclick=()=>openVenueMenu(currentMatch.venue);
+ const ag=document.querySelector("[data-agenda]"); if(ag) ag.onclick=openAgendaMenu;
+}
+function openSheet(opts){
+ const s=document.getElementById("sheet"), o=document.getElementById("ov2");
+ const items=opts.map(x=>typeof x==="string"?{label:x}:x);
+ s.innerHTML=items.map(x=>`<div class="opt">${x.label}</div>`).join("")+`<div class="opt">Annuler</div>`;
+ s.classList.add("open"); o.classList.add("open");
+ let pushed = navPush();
+ const close=()=>{ closeSheet(); if(pushed){ pushed = false; history.back(); } };
+ o.onclick=close;
+ s.querySelectorAll(".opt").forEach((el,i)=>el.onclick=()=>{ close(); if(items[i]&&items[i].run) items[i].run(); });
+}
+function openVenueMenu(venue){
+ const q=encodeURIComponent(venue);
+ openSheet([
+  {label:"Ouvrir dans Google Maps", run:()=>window.open(`https://www.google.com/maps/search/?api=1&query=${q}`,"_blank")},
+  {label:"Ouvrir dans Waze", run:()=>window.open(`https://waze.com/ul?q=${q}&navigate=yes`,"_blank")},
+  {label:"Ouvrir dans Apple Plans", run:()=>window.open(`https://maps.apple.com/?q=${q}`,"_blank")},
+ ]);
+}
+function openAgendaMenu(){
+ const https=new URL("calendrier.ics", location.href).href;
+ const webcal=https.replace(/^https?:/,"webcal:");
+ openSheet([
+  {label:"S'abonner (iPhone, Mac, Android)", run:()=>{ window.location.href=webcal; }},
+  {label:"Copier le lien (Google Agenda, Outlook…)", run:()=>{
+    (navigator.clipboard?navigator.clipboard.writeText(https):Promise.reject()).then(()=>alert("Lien copié !")).catch(()=>prompt("Copie ce lien :", https));
+  }},
+ ]);
+}
+const VAPID_PUBLIC = "BDtnsQ82oKQ9B3oUuFY0FOWWs8h5M2zGxOSD38ol4ykrbdHE9XqgClg-01qNo7O9jH4gJ3pv0xCEUvUG_lmHrok";
+const u8 = b64 => { const r = atob((b64+"=".repeat((4-b64.length%4)%4)).replace(/-/g,"+").replace(/_/g,"/")); return Uint8Array.from([...r].map(c=>c.charCodeAt(0))); };
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const isStandalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+async function pushState(){
+ if(!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) return (isIOS && !isStandalone) ? "ios-install" : "unsupported";
+ if(Notification.permission === "denied") return "denied";
+ const reg = await navigator.serviceWorker.getRegistration();
+ const sub = reg && await reg.pushManager.getSubscription();
+ return sub ? "on" : "off";
+}
+async function activerPush(){
+ const reg = await navigator.serviceWorker.register("sw.js");
+ await navigator.serviceWorker.ready;
+ if(await Notification.requestPermission() !== "granted") return;
+ const sub = await reg.pushManager.subscribe({userVisibleOnly:true, applicationServerKey:u8(VAPID_PUBLIC)});
+ const j = sub.toJSON();
+ const {error} = await sb.from("push_subscriptions").upsert({joueur_id:MY_ID, endpoint:j.endpoint, p256dh:j.keys.p256dh, auth_key:j.keys.auth}, {onConflict:"endpoint"});
+ if(error) throw new Error(error.message);
+}
+async function desactiverPush(){
+ const reg = await navigator.serviceWorker.getRegistration();
+ const sub = reg && await reg.pushManager.getSubscription();
+ if(sub){ await sb.from("push_subscriptions").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); }
+}
+async function renderPushZone(){
+ const z = document.getElementById("pushZone"); if(!z) return;
+ const st = await pushState();
+ const note = t => `<div style="font-size:14px;opacity:.9">${t}</div>`;
+ z.innerHTML = st==="on" ? `<div style="font-size:16px;font-weight:600">🔔 Notifications activées sur cet appareil</div><a href="#" id="pushOff" style="font-size:16px">Désactiver</a>`
+  : st==="off" ? `<button id="pushOn" style="width:100%;padding:14px;border-radius:10px;border:none;background:#fff;color:var(--green);font-weight:700;font-size:17px">🔔 Activer les notifications</button>`
+  : st==="denied" ? note("Notifications bloquées : autorise-les dans les réglages de ton navigateur ou de ton appareil.")
+  : st==="ios-install" ? note("Sur iPhone : touche Partager puis « Sur l'écran d'accueil », ouvre l'app depuis son icône, puis reviens ici pour activer les notifications.")
+  : note("Notifications push indisponibles ici (essaie depuis l'app installée).");
+ const on = document.getElementById("pushOn");
+ if(on) on.onclick = async ()=>{ try{ await activerPush(); }catch(e){ alert("Activation impossible : "+e.message); } renderPushZone(); };
+ const off = document.getElementById("pushOff");
+ if(off) off.onclick = async e=>{ e.preventDefault(); await desactiverPush(); renderPushZone(); };
+}
+function openNotif(){
+ document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
+ ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"${n.match_id?` data-notif-match="${n.match_id}" style="cursor:pointer"`:''}><div>${esc(n.message)}<div class="t">${relTime(n.created_at)}${n.match_id?' · Voir le match ›':''}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
+  :'<div class="nitem">Aucune notification pour l\'instant.</div>'}`;
+ document.getElementById("notifOv").classList.add("open");
+ if(overlay!=="notif"){ overlay = "notif"; navPush(); }
+ document.getElementById("ncl").onclick=()=>navBack(()=>{ document.getElementById("notifOv").classList.remove("open"); overlay = null; });
+ document.querySelectorAll("[data-notif-match]").forEach(el=>el.onclick=()=>{
+  document.getElementById("notifOv").classList.remove("open"); overlay = null; navReplace();
+  openMatchById(el.dataset.notifMatch, {replace:true});
+ });
+ document.querySelectorAll("[data-del-notif]").forEach(el=>el.onclick=e=>{ e.stopPropagation(); supprimerNotif(el.dataset.delNotif); });
+ const idsNonLues = notifs.filter(n=>!n.lu).map(n=>n.id);
+ if(idsNonLues.length){
+  sb.from("notifications").update({lu:true}).in("id", idsNonLues).then(()=>{
+   notifs.forEach(n=>n.lu=true); render();
+  });
+ }
+}
+function openProfil(){
+ document.getElementById("profOv").innerHTML=`<div class="profov">
+  <div class="ov-head"><b></b><button class="x" id="pcl">✕</button></div>
+  <div style="font-weight:800;letter-spacing:1px;margin-top:-30px">PROFIL</div>
+  <div class="av2">${initials(ME)}</div><h4>${ME.toUpperCase()}</h4><a>${MY_EMAIL}</a>
+  <div id="pushZone" style="margin:22px 20px 0"></div>
+  <div style="font-size:14px;opacity:.9;margin-top:20px">Thème</div>
+  <div class="roleswitch" style="margin-top:6px">
+   <button data-theme-set="light" class="${theme==='light'?'on':''}">☀️ Clair</button>
+   <button data-theme-set="dark" class="${theme==='dark'?'on':''}">🌙 Sombre</button>
+  </div>
+  <div class="deco"><a href="#" id="logoutLink">Se déconnecter</a></div>
+ </div>`;
+ document.getElementById("profOv").classList.add("open");
+ if(overlay!=="profil"){ overlay = "profil"; navPush(); }
+ renderPushZone();
+ document.querySelectorAll("[data-theme-set]").forEach(b=>b.onclick=()=>{
+  setTheme(b.dataset.themeSet);
+  document.querySelectorAll("[data-theme-set]").forEach(x=>x.classList.toggle("on", x===b));
+ });
+ document.getElementById("pcl").onclick=()=>navBack(()=>{ document.getElementById("profOv").classList.remove("open"); overlay = null; });
+ document.getElementById("logoutLink").onclick=async (e)=>{e.preventDefault(); await sb.auth.signOut(); location.reload();};
+}
+document.getElementById("bellBtn").onclick=openNotif;
+document.getElementById("avatarBtn").onclick=openProfil;
+function applyTheme(t){ theme=t; document.documentElement.setAttribute("data-theme", t==="dark"?"dark":""); }
+function setTheme(t){ applyTheme(t); try{ localStorage.setItem("parisasf_theme", t); }catch(_){} }
+try{ applyTheme(localStorage.getItem("parisasf_theme")==="dark"?"dark":"light"); }catch(_){}
+document.querySelectorAll("nav button").forEach(b=>b.onclick=()=>goTab(b.dataset.tab));
+</script>
+</body>
+</html>
