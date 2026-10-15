@@ -1013,7 +1013,7 @@ async function renderPushZone(){
 function openNotif(){
  document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
  ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"${n.match_id?` data-notif-match="${n.match_id}" style="cursor:pointer"`:''}><div>${esc(n.message)}<div class="t">${relTime(n.created_at)}${n.match_id?' · Voir le match ›':''}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
-  :'<div class="nitem">Aucune notification pour l\\'instant.</div>'}`;
+  :'<div class="nitem">Aucune notification pour l’instant.</div>'}`;
  document.getElementById("notifOv").classList.add("open");
  if(overlay!=="notif"){ overlay = "notif"; navPush(); }
  document.getElementById("ncl").onclick=()=>navBack(()=>{ document.getElementById("notifOv").classList.remove("open"); overlay = null; });
