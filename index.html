@@ -86,7 +86,8 @@ h3.sect{text-align:center;font-size:14px;letter-spacing:1px;color:var(--muted);m
 .pgroup .cnt{display:flex;gap:8px;align-items:baseline;font-weight:800;margin-bottom:4px;}
 .cnt.g{color:var(--green);} .cnt.r{color:var(--red);} .cnt.gy{color:var(--muted);}
 .pgroup .names{font-size:16px;color:var(--text);line-height:1.6;padding-left:2px;}
-.votebtn{display:block;width:100%;background:var(--green);color:#fff;border:none;padding:14px;border-radius:10px;font-weight:700;font-size:17px;}
+.votebtn{display:block;width:100%;background:var(--green);color:#fff;border:none;padding:14px;border-radius:10px;font-weight:700;font-size:17px;cursor:pointer;}
+.votebtn:disabled{opacity:0.4;cursor:not-allowed;}
 .voteopt{display:flex;justify-content:space-between;align-items:center;padding:10px 4px;border-bottom:1px solid var(--line);}
 .voteopt button{background:var(--chipbg);border:none;color:var(--green);font-weight:700;padding:6px 12px;border-radius:8px;}
 .winner{display:flex;align-items:center;gap:10px;}
@@ -288,9 +289,9 @@ async function loadJoueurEtDemarre(session){
   return;
  }
  ME = data.nom; MY_ID = data.id; ROLE = data.role; MY_EMAIL = email;
- const {data: tousJoueurs} = await sb.from("joueurs").select("id,nom,role").eq("actif", true);
+ const {data: tousJoueurs} = await sb.from("joueurs").select("id,nom,role,email").eq("actif", true);
  effectif = tousJoueurs||[];
- if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
+ if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE, email:MY_EMAIL});
  
  await loadDonneesFLA();
  await loadNotifications();
@@ -414,9 +415,9 @@ async function setPresence(m, statut){
 }
 
 async function refreshEffectif(){
- const {data} = await sb.from("joueurs").select("id,nom,role").eq("actif", true);
+ const {data} = await sb.from("joueurs").select("id,nom,role,email").eq("actif", true);
  effectif = data||[];
- if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE});
+ if(!effectif.some(j=>j.id===MY_ID)) effectif.push({id:MY_ID, nom:ME, role:ROLE, email:MY_EMAIL});
 }
 
 async function setPresenceManager(m, joueurId, statut){
@@ -437,6 +438,49 @@ async function setPresenceManager(m, joueurId, statut){
       mesPresencesLocales[m.dbId] = statut;
      }
      await loadPresences(m); render();
+ });
+}
+
+async function relancerRetardataires(m){
+ if(ROLE !== "manager" || !m || !m.dbId) return;
+ const sansReponse = effectif.filter(j => {
+  const statut = (m.presenceReal || {})[j.id];
+  return statut !== "oui" && statut !== "non";
+ });
+ 
+ if(sansReponse.length === 0){
+  alert("Tous les joueurs ont déjà répondu pour ce match !");
+  return;
+ }
+ 
+ showConfirm("Rappel de présence", `Envoyer un rappel in-app et préparer l'email de relance pour les ${sansReponse.length} retardataires ?`, async () => {
+  const dateStr = fmtDateFull(m.dt);
+  const heureStr = fmtTime(m.dt);
+  const msg = `Dispo pour le match du ${dateStr} à ${heureStr} ? Réponds vite dans l'app !`;
+  
+  // 1. Insertion des notifications in-app
+  const notifsAInserer = sansReponse.map(j => ({
+   joueur_id: j.id,
+   match_id: m.dbId,
+   type: "relance_presence",
+   message: msg,
+   lu: false
+  }));
+  
+  const { error } = await sb.from("notifications").insert(notifsAInserer);
+  if(error) {
+   console.warn("Erreur insertion notifications in-app :", error);
+  }
+  
+  // 2. Préparation du lien mailto avec tous les retardataires en copie cachée (BCC)
+  const emails = sansReponse.map(j => j.email).filter(Boolean);
+  if(emails.length > 0) {
+   const sujet = encodeURIComponent(`Paris ASF : Réponse attendue pour le match du ${dateStr}`);
+   const corps = encodeURIComponent(`Salut les gars,\n\nMerci d'indiquer dès que possible votre présence pour le match contre ${m.domicile === "PARIS ASF" ? m.exterieur : m.domicile} prévu le ${dateStr} à ${heureStr} :\nhttps://alexdamong-byte.github.io/AppFLA_ParisASF/\n\nAllez Paris ASF !`);
+   window.location.href = `mailto:?bcc=${emails.join(",")}&subject=${sujet}&body=${corps}`;
+  } else {
+   alert(`Rappel in-app envoyé à ${sansReponse.length} joueur(s) !`);
+  }
  });
 }
 
@@ -742,6 +786,16 @@ function viewMatch(m){
   });
   h+=`</div>`;
 
+  // Bouton de relance réservé aux managers
+  if (ROLE === "manager") {
+   const nbSansReponse = counts.wait;
+   h += `<div style="margin-top:14px">
+    <button class="votebtn" id="btnRappelRetardataires" style="background:${nbSansReponse > 0 ? 'var(--green)' : 'var(--chipbg)'};color:${nbSansReponse > 0 ? '#fff' : 'var(--muted)'};" ${nbSansReponse === 0 ? 'disabled' : ''}>
+      📢 Relancer les retardataires (${nbSansReponse})
+    </button>
+   </div>`;
+  }
+
  } else if(!m.dbId){
   h+=`<div class="manager" style="border:none;padding-top:0">Ce match n'est pas encore synchronisé avec la base.</div>`;
  } else {
@@ -927,6 +981,8 @@ function bind(){
  const bk=document.querySelector("[data-back]"); if(bk) bk.onclick=()=>navBack(()=>{ currentMatch=null; render(); });
  document.querySelectorAll("[data-pres]").forEach(b=>b.onclick=()=>setPresence(currentMatch, b.dataset.pres));
  document.querySelectorAll("[data-mgr-pres]").forEach(b=>b.onclick=()=>setPresenceManager(currentMatch, b.dataset.mgrPres, b.dataset.mgrVal));
+ const btnRappel = document.getElementById("btnRappelRetardataires");
+ if(btnRappel) btnRappel.onclick = () => relancerRetardataires(currentMatch);
  document.querySelectorAll("[data-vote]").forEach(b=>b.onclick=()=>voter(currentMatch, b.dataset.vote));
  document.querySelectorAll("[data-toggle-joue]").forEach(el=>el.onchange=()=>{
   currentMatch.validationDraft[el.dataset.toggleJoue] = el.checked;
