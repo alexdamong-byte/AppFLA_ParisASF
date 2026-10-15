@@ -88,14 +88,41 @@ def parse_classement():
     table = soup.find("table")
     if not table:
         raise RuntimeError("Tableau de classement introuvable — le site a peut-être changé.")
+    
+    # Détection dynamique des colonnes par leurs en-têtes
+    headers = [th.get_text(strip=True).lower() for th in table.find_all("th")]
+
+    def get_col_idx(candidates, fallback):
+        for idx, h in enumerate(headers):
+            if h in candidates:
+                return idx
+        return fallback
+
+    idx_equipe = get_col_idx(["équipe", "equipe"], 1)
+    idx_pts    = get_col_idx(["points", "pts"], 2)
+    idx_j      = get_col_idx(["j", "joues", "joués"], 4)
+    idx_g      = get_col_idx(["g", "gagnes", "gagnés"], 5)
+    idx_n      = get_col_idx(["n", "nuls"], 6)
+    idx_p      = get_col_idx(["p", "perdus"], 7)
+
+    def to_int(val):
+        val = val.strip()
+        return int(val) if val.lstrip("-").isdigit() else 0
+
     rows = []
-    for tr in table.find_all("tr")[1:]:  # skip header
+    for tr in table.find_all("tr")[1:]:  # saute la ligne d'en-tête
         cells = [td.get_text(strip=True) for td in tr.find_all("td")]
-        if len(cells) < 7: continue
-        # cells: [Pos, Équipe, Pts, J, G, N, P, Diff]
-        equipe = cells[1]
-        pts, j, g, n, p = (int(x) if x.lstrip("-").isdigit() else 0 for x in cells[2:7])
-        rows.append({"equipe": equipe, "points": pts, "joues": j, "gagnes": g, "nuls": n, "perdus": p})
+        if len(cells) <= max(idx_equipe, idx_pts, idx_j, idx_g, idx_n, idx_p):
+            continue
+        
+        rows.append({
+            "equipe": cells[idx_equipe],
+            "points": to_int(cells[idx_pts]),
+            "joues": to_int(cells[idx_j]),
+            "gagnes": to_int(cells[idx_g]),
+            "nuls": to_int(cells[idx_n]),
+            "perdus": to_int(cells[idx_p]),
+        })
     return rows
 
 def source_id(m):
