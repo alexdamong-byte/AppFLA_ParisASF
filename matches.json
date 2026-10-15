@@ -49,8 +49,11 @@
     "exterieur": "PANAMPRIDE FC B",
     "date": "2026-10-14T21:30:00",
     "venue": "Stade Municipal de Chatillon",
-    "score": null,
-    "statut": "upcoming"
+    "score": [
+      5,
+      2
+    ],
+    "statut": "past"
   },
   {
     "competition": "Championnat",
