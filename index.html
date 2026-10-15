@@ -53,7 +53,14 @@ h2.title{text-align:center;font-weight:800;font-size:18px;letter-spacing:.5px;ma
 .d-yes{background:var(--green);}
 .d-past{background:var(--grey);}
 .minfo{flex:1;min-width:0;}
-.comp{font-size:13px;color:var(--gold);display:flex;align-items:center;gap:4px;margin-bottom:2px;}
+.mtoprow{display:flex;justify-content:space-between;align-items:center;margin-bottom:2px;}
+.comp{font-size:13px;color:var(--gold);display:flex;align-items:center;gap:4px;}
+.mres{font-size:13px;font-weight:700;margin-left:auto;}
+.mres.win{color:#00b894;}
+.mres.loss{color:#ff4d4d;}
+.mres.draw{color:var(--muted);}
+[data-theme="dark"] .mres.win{color:#00d29d;}
+[data-theme="dark"] .mres.loss{color:#ff5252;}
 .trow{display:flex;justify-content:space-between;font-size:16px;font-weight:600;}
 .trow.win{font-weight:800;}
 .venue{font-size:14px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
@@ -522,12 +529,47 @@ async function voter(m, candidatId){
 }
 
 function matchRow(m, isNext){
- const st = m.status==="past"?"past":(m.presence && ME && m.presence[ME]==="oui"?"yes":m.presence && ME && m.presence[ME]==="non"?"no":"wait");
+ const isPastMatch = m.status==="past" || m.statut==="past" || (m.dt && m.dt < new Date()) || (Array.isArray(m.score) && m.score[0] !== null && m.score[0] !== undefined);
+ const st = isPastMatch ? "past" : (m.presence && ME && m.presence[ME]==="oui" ? "yes" : m.presence && ME && m.presence[ME]==="non" ? "no" : "wait");
  const homeWin = !!m.score && m.score[0]>m.score[1], awayWin = !!m.score && m.score[1]>m.score[0];
+ 
+ let resText = "", resClass = "";
+ const hasScore = Array.isArray(m.score) && m.score.length >= 2 && m.score[0] !== null && m.score[0] !== undefined && m.score[0] !== '-' && !isNaN(Number(m.score[0])) && !isNaN(Number(m.score[1]));
+ 
+ if(isPastMatch && hasScore){
+  const norm = s => String(s || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+  const hNorm = norm(m.domicile || m.home);
+  const aNorm = norm(m.exterieur || m.away);
+  const isHome = hNorm.includes("PARISASF");
+  const isAway = aNorm.includes("PARISASF");
+  
+  const s0 = Number(m.score[0]);
+  const s1 = Number(m.score[1]);
+  let sParis = s0, sOpp = s1;
+  if(isAway && !isHome){
+   sParis = s1;
+   sOpp = s0;
+  }
+  
+  if(sParis > sOpp){
+   resText = "Victoire"; resClass = "win";
+  } else if(sParis < sOpp){
+   resText = "Défaite"; resClass = "loss";
+  } else {
+   resText = "Nul"; resClass = "draw";
+  }
+ }
+
+ const hasTop = m.comp==="Coupe" || !!resText;
+ const topHtml = hasTop ? `<div class="mtoprow">
+   ${m.comp==="Coupe"?`<div class="comp">🏆 Coupe</div>`:`<div></div>`}
+   ${resText?`<span class="mres ${resClass}">${resText}</span>`:''}
+  </div>` : '';
+
  return `<div class="mrow" data-open="${m.id}"${isNext?' id="nextMatch"':''}>
   <div class="dblock d-${st}" data-color-match="${m.dbId || ''}"><b>${fmtDay(m.dt)}</b><span style="font-size:14px">${fmtMonAbbr(m.dt)}</span></div>
   <div class="minfo">
-   ${m.comp==="Coupe"?`<div class="comp">🏆 Coupe</div>`:''}
+   ${topHtml}
    <div class="trow ${homeWin?'win':''}"><span>${m.domicile || m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
    <div class="trow ${awayWin?'win':''}"><span>${m.exterieur || m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
    <div class="venue">${fmtTime(m.dt)} · ${m.venue}</div>
@@ -813,7 +855,9 @@ function appliqCouleursCalendrier(){
   
   el.className = "dblock";
   
-  if(m && m.status === "past") {
+  const isPast = (m && (m.status === "past" || m.statut === "past")) || (m && m.dt && m.dt < new Date()) || (m && Array.isArray(m.score) && m.score[0] !== null);
+  
+  if(isPast) {
    el.classList.add("d-past");
   } else if(statut === "oui") {
    el.classList.add("d-yes");
@@ -969,7 +1013,7 @@ async function renderPushZone(){
 function openNotif(){
  document.getElementById("notifOv").innerHTML=`<div class="ov-head"><b>NOTIFICATIONS</b><button class="x" id="ncl">✕</button></div>
  ${notifs.length?notifs.map(n=>`<div class="nitem ${!n.lu?'unread':''}"${n.match_id?` data-notif-match="${n.match_id}" style="cursor:pointer"`:''}><div>${esc(n.message)}<div class="t">${relTime(n.created_at)}${n.match_id?' · Voir le match ›':''}</div></div><span class="del" data-del-notif="${n.id}">🗑</span></div>`).join("")
-  :'<div class="nitem">Aucune notification pour l\'instant.</div>'}`;
+  :'<div class="nitem">Aucune notification pour l\\'instant.</div>'}`;
  document.getElementById("notifOv").classList.add("open");
  if(overlay!=="notif"){ overlay = "notif"; navPush(); }
  document.getElementById("ncl").onclick=()=>navBack(()=>{ document.getElementById("notifOv").classList.remove("open"); overlay = null; });
