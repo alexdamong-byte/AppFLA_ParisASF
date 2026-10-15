@@ -108,8 +108,9 @@ tr:last-child td{border-bottom:none;}
 
 /* Spécifique Club */
 .club-table{table-layout:fixed;width:100%;}
-.club-table th:nth-child(1), .club-table td:nth-child(1){width:45%;text-align:left;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.club-table th:not(:first-child), .club-table td:not(:first-child){width:11%;text-align:center;}
+.club-table th{white-space:nowrap;padding:10px 1px;}
+.club-table th:nth-child(1), .club-table td:nth-child(1){width:35%;text-align:left;padding-left:8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.club-table th:not(:first-child), .club-table td:not(:first-child){width:13%;text-align:center;}
 
 /* Spécifique Stats Match */
 .stats-match-table{table-layout:fixed;width:100%;}
@@ -612,7 +613,7 @@ function viewClub(){
  const rows=clubRows||[]; const tot={j:jEquipe,b:rows.reduce((a,c)=>a+c.b,0),pd:rows.reduce((a,c)=>a+c.pd,0)};
  const indicator = (key) => {
    if (clubSortKey !== key) return '';
-   return clubSortAsc ? ' ▲' : ' ▼';
+   return clubSortAsc ? '&nbsp;▲' : '&nbsp;▼';
  };
  return `<h2 class="title">CLUB</h2>
  <div class="small" style="text-align:center;margin:-4px 0 10px">Saison en cours (Championnat + Coupe)</div><div class="sheet-card" style="padding:6px 0"><table class="club-table"><tr>
