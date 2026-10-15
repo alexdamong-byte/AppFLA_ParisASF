@@ -50,39 +50,3 @@ jobs:
           git add classement.json matches.json calendrier.ics
           git commit -m "Mise à jour automatique (Classement + Calendrier)" || echo "Aucun changement à sauvegarder"
           git push
-
-name: Actualisation FLA
-
-on:
-  schedule:
-    # 7h et 8h UTC (couvre 9h Paris été/hiver) | 21h et 22h UTC (couvre 23h Paris été/hiver)
-    - cron: '0 7,8,21,22 * * *'
-  workflow_dispatch: # Permet de lancer le workflow manuellement depuis GitHub si besoin
-
-jobs:
-  scrape:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Récupération du code
-        uses: actions/checkout@v4
-
-      - name: Configuration de Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Installation des dépendances
-        run: pip install requests beautifulsoup4
-
-      - name: Exécution du scraper
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
-        run: python scrape_fla.py
-
-      - name: Commit et Push des fichiers JSON
-        run: |
-          git config --global user.name "github-actions[bot]"
-          git config --global user.email "github-actions[bot]@users.noreply.github.com"
-          git add matches.json classement.json calendrier.ics
-          git diff --quiet && git diff --staged --quiet || (git commit -m "Mise à jour automatique des données FLA" && git push)
