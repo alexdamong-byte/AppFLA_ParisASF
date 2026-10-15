@@ -2,7 +2,8 @@ name: Génération API FLA
 
 on:
   schedule:
-    - cron: '0 8 * * *' # Tous les jours à 8h
+    # 7h et 8h UTC (couvre 9h Paris été/hiver) | 21h et 22h UTC (couvre 23h Paris été/hiver)
+    - cron: '0 7,8,21,22 * * *'
   workflow_dispatch: # Bouton manuel
     inputs:
       test_push:
