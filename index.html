@@ -351,9 +351,9 @@ const MOIS=["janvier","février","mars","avril","mai","juin","juillet","août","
 const fmtTime=d=>d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
 const fmtDay=d=>d.getDate().toString().padStart(2,"0");
 const fmtMonAbbr=d=>MOIS[d.getMonth()].slice(0,3)+".";
-const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()} ${d.getFullYear()}`;
+const fmtDateFull=d=>`${d.getDate()} ${MOIS[d.getMonth()].toUpperCase()}${d.getFullYear()}`;
 
-const sourceId = m => `${m.competition}|${m.domicile}|${m.exterieur}|${m.date}`;
+const sourceId = m => `${m.competition}\vert{}${m.domicile}|${m.exterieur}\vert{}${m.date}`;
 
 async function loadDonneesFLA(){
  try{
@@ -453,12 +453,11 @@ async function relancerRetardataires(m){
   return;
  }
  
- showConfirm("Rappel de présence", `Envoyer un rappel in-app et préparer l'email de relance pour les ${sansReponse.length} retardataires ?`, async () => {
+ showConfirm("Rappel de présence", `Envoyer un rappel in-app aux ${sansReponse.length} retardataire(s) ?`, async () => {
   const dateStr = fmtDateFull(m.dt);
   const heureStr = fmtTime(m.dt);
   const msg = `Dispo pour le match du ${dateStr} à ${heureStr} ? Réponds vite dans l'app !`;
   
-  // 1. Insertion des notifications in-app
   const notifsAInserer = sansReponse.map(j => ({
    joueur_id: j.id,
    match_id: m.dbId,
@@ -469,17 +468,9 @@ async function relancerRetardataires(m){
   
   const { error } = await sb.from("notifications").insert(notifsAInserer);
   if(error) {
-   console.warn("Erreur insertion notifications in-app :", error);
-  }
-  
-  // 2. Préparation du lien mailto avec tous les retardataires en copie cachée (BCC)
-  const emails = sansReponse.map(j => j.email).filter(Boolean);
-  if(emails.length > 0) {
-   const sujet = encodeURIComponent(`Paris ASF : Réponse attendue pour le match du ${dateStr}`);
-   const corps = encodeURIComponent(`Salut les gars,\n\nMerci d'indiquer dès que possible votre présence pour le match contre ${m.domicile === "PARIS ASF" ? m.exterieur : m.domicile} prévu le ${dateStr} à ${heureStr} :\nhttps://alexdamong-byte.github.io/AppFLA_ParisASF/\n\nAllez Paris ASF !`);
-   window.location.href = `mailto:?bcc=${emails.join(",")}&subject=${sujet}&body=${corps}`;
+   alert("Erreur lors de l'enregistrement des notifications : " + error.message);
   } else {
-   alert(`Rappel in-app envoyé à ${sansReponse.length} joueur(s) !`);
+   alert(`Rappel envoyé dans l'app à ${sansReponse.length} joueur(s) !`);
   }
  });
 }
@@ -538,7 +529,7 @@ function onStatInput(el, champ, id){
   const max = Math.max(0, m.scoreOfficiel - totalStat(m, champ, id));
   if(v>max){
    v = max; el.value = String(max);
-   avert = `Maximum ${max} : le total des ${champ==="buts"?"buts":"passes décisives"} ne peut pas dépasser le score de l'équipe (${m.scoreOfficiel}).`;
+   avert = `Maximum ${max} : le total des${champ==="buts"?"buts":"passes décisives"} ne peut pas dépasser le score de l'équipe (${m.scoreOfficiel}).`;
   }
  }
  if(el.value!=="" && String(v)!==el.value) el.value = String(v);
@@ -611,12 +602,12 @@ function matchRow(m, isNext){
   </div>` : '';
 
  return `<div class="mrow" data-open="${m.id}"${isNext?' id="nextMatch"':''}>
-  <div class="dblock d-${st}" data-color-match="${m.dbId || ''}"><b>${fmtDay(m.dt)}</b><span style="font-size:14px">${fmtMonAbbr(m.dt)}</span></div>
+  <div class="dblock d-${st}" data-color-match="${m.dbId \vert{}\vert{} ''}"><b>${fmtDay(m.dt)}</b><span style="font-size:14px">${fmtMonAbbr(m.dt)}</span></div>
   <div class="minfo">
    ${topHtml}
-   <div class="trow ${homeWin?'win':''}"><span>${m.domicile || m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
-   <div class="trow ${awayWin?'win':''}"><span>${m.exterieur || m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
-   <div class="venue">${fmtTime(m.dt)} · ${m.venue}</div>
+   <div class="trow ${homeWin?'win':''}"><span>${m.domicile \vert{}\vert{} m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+   <div class="trow ${awayWin?'win':''}"><span>${m.exterieur \vert{}\vert{} m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+   <div class="venue">${fmtTime(m.dt)} ·${m.venue}</div>
   </div></div>`;
 }
 
@@ -708,8 +699,7 @@ function viewClub(){
  <th onclick="changeClubSort('b')">B${indicator('b')}</th>
  <th onclick="changeClubSort('pd')">PD${indicator('pd')}</th>
  <th onclick="changeClubSort('gb')">GB${indicator('gb')}</th>
- <th onclick="changeClubSort('hm')">HM${indicator('hm')}</th></tr>
- ${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
+ <th onclick="changeClubSort('hm')">HM${indicator('hm')}</th></tr>${clubErr?`<tr><td colspan="6" style="text-align:center;color:var(--red)">Statistiques indisponibles (${esc(clubErr)})</td></tr>`
   :clubRows===null?'<tr><td colspan="6" style="text-align:center;color:var(--muted)">Chargement des statistiques…</td></tr>'
   :rows.map(p=>`<tr><td>${esc(p.n)}</td><td>${p.j}</td><td>${p.b}</td><td>${p.pd}</td><td>${p.gb}</td><td>${p.hm}</td></tr>`).join("")}
  <tr class="tot"><td>PARIS ASF</td><td>${tot.j}</td><td>${tot.b}</td><td>${tot.pd}</td><td>-</td><td>-</td></tr>
@@ -719,12 +709,11 @@ function viewClub(){
 function viewMatch(m){
  let h=`<div class="backbar"><button class="bk" data-back="1">←</button></div>
  <div class="mhead"><div class="dt">${fmtDateFull(m.dt)}</div><div class="tm">${fmtTime(m.dt)}</div>
-  <a data-venue="1">${m.venue}</a>
-  ${m.comp==="Coupe"?`<div class="comp2">🏆 Coupe</div>`:''}
+  <a data-venue="1">${m.venue}</a>${m.comp==="Coupe"?`<div class="comp2">🏆 Coupe</div>`:''}
  </div>
  <div class="card">
-  <div class="teamrow ${m.score&&m.score[0]>m.score[1]?'win':''}"><span>${m.domicile || m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
-  <div class="teamrow ${m.score&&m.score[1]>m.score[0]?'win':''}"><span>${m.exterieur || m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
+  <div class="teamrow ${m.score&&m.score[0]>m.score[1]?'win':''}"><span>${m.domicile \vert{}\vert{} m.home}</span><span>${m.score?m.score[0]:'-'}</span></div>
+  <div class="teamrow ${m.score&&m.score[1]>m.score[0]?'win':''}"><span>${m.exterieur \vert{}\vert{} m.away}</span><span>${m.score?m.score[1]:'-'}</span></div>
  </div>`;
  
  if(m.status==="upcoming"){
@@ -868,7 +857,7 @@ function viewMatch(m){
    </table>
    <button class="votebtn" style="margin-top:10px" data-save-stats="1">Enregistrer les stats</button>`;
   } else {
-   h+=`<table class="stats-match-table"><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
+   <table class="stats-match-table"><tr><th>Joueurs</th><th>B</th><th>PD</th><th>GB</th></tr>
    ${m.playersOk.map(j=>{const s=m.statsDraft[j.id]||{buts:0,pd:0,gardien:false};
     const nomSimplifie = simplifierNom(j.nom, effectif.map(x=>x.nom));
     return `<tr><td>${nomSimplifie}</td><td>${s.buts}</td><td>${s.pd}</td><td>${s.gardien?'✓':'—'}</td></tr>`;}).join("")}
