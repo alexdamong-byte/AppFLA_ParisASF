@@ -1,5 +1,13 @@
 [
   {
+    "equipe": "CLAN TETARD FC",
+    "points": 4,
+    "joues": 1,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "PARIS ASF",
     "points": 4,
     "joues": 1,
@@ -64,12 +72,12 @@
     "perdus": 1
   },
   {
-    "equipe": "CLAN TETARD FC",
-    "points": 0,
-    "joues": 0,
+    "equipe": "LA DISTILLERIE FC C",
+    "points": 1,
+    "joues": 1,
     "gagnes": 0,
     "nuls": 0,
-    "perdus": 0
+    "perdus": 1
   },
   {
     "equipe": "FC PARIS CLICHY B",
@@ -81,14 +89,6 @@
   },
   {
     "equipe": "LA DISTILLERIE FC A",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "LA DISTILLERIE FC C",
     "points": 0,
     "joues": 0,
     "gagnes": 0,
