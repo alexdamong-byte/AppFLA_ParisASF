@@ -8,6 +8,14 @@
     "perdus": 0
   },
   {
+    "equipe": "UAC PARIS 12",
+    "points": 4,
+    "joues": 1,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "PARIS ASF",
     "points": 4,
     "joues": 1,
@@ -32,6 +40,14 @@
     "perdus": 0
   },
   {
+    "equipe": "FC PARIS CLICHY B",
+    "points": 4,
+    "joues": 1,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "PAZIZOU FC A",
     "points": 4,
     "joues": 1,
@@ -41,6 +57,14 @@
   },
   {
     "equipe": "FC TIKITACOS",
+    "points": 1,
+    "joues": 1,
+    "gagnes": 0,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
+    "equipe": "PANAMPRIDE FC C",
     "points": 1,
     "joues": 1,
     "gagnes": 0,
@@ -80,35 +104,11 @@
     "perdus": 1
   },
   {
-    "equipe": "FC PARIS CLICHY B",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
     "equipe": "LA DISTILLERIE FC A",
-    "points": 0,
-    "joues": 0,
+    "points": 1,
+    "joues": 1,
     "gagnes": 0,
     "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "PANAMPRIDE FC C",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "UAC PARIS 12",
-    "points": 0,
-    "joues": 0,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 0
+    "perdus": 1
   }
 ]
