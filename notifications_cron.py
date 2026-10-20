@@ -1,7 +1,7 @@
 """
 Génère les notifications quotidiennes pour l'app Paris ASF :
-- relance tous les 3 jours si un joueur n'a pas répondu (jusqu'à 20 jours avant le match)
-- mise en "absent" automatique à J-4 si toujours sans réponse
+- relance tous les 3 jours si un joueur n'a pas répondu à partir de J-15 (J-15, J-12, J-9, J-6, J-3)
+- mise en "absent" automatique à J-1 (24h avant le match) si toujours sans réponse
 - notification "vote disponible" 2h après le match, une fois la feuille + les stats validées
 Lancé quotidiennement par GitHub Actions avec la clé service_role (contourne les RLS).
 """
@@ -65,9 +65,12 @@ def envoyer_push(joueur_id, message, match_id=None):
             print(f"⚠️  Push échoué : {str(e)[:200]}")
 
 def notifier(joueur_id, match_id, type_, message):
-    existe = get("notifications", f"?joueur_id=eq.{joueur_id}&match_id=eq.{match_id}&type=eq.{type_}&select=id&limit=1")
-    if existe:
-        return False
+    # Pour les relances régulières, deja_relance_recemment() gère le délai.
+    # Pour les autres types (absence_auto, vote_disponible), on bloque si déjà envoyé une fois.
+    if type_ != "relance_presence":
+        existe = get("notifications", f"?joueur_id=eq.{joueur_id}&match_id=eq.{match_id}&type=eq.{type_}&select=id&limit=1")
+        if existe:
+            return False
     post("notifications", {"joueur_id": joueur_id, "match_id": match_id, "type": type_, "message": message, "lu": False})
     envoyer_push(joueur_id, message, match_id)
     return True
@@ -83,33 +86,39 @@ def deja_relance_recemment(joueur_id, match_id):
     if not rows:
         return False
     dernier = parse_ts(rows[0]["created_at"])
-    return (datetime.now(timezone.utc) - dernier) < timedelta(days=3)
+    # 66 heures de seuil pour assurer un déclenchement fiable à J-12, J-9, J-6, J-3 sur les runs du matin
+    return (datetime.now(timezone.utc) - dernier) < timedelta(days=2, hours=18)
+
+def paris_txt(dt):
+    return dt.astimezone(ZoneInfo("Europe/Paris")).strftime("%d/%m à %Hh%M")
 
 def gerer_presence_a_venir():
     if not URL or not KEY:
         print("⚠️  Secrets Supabase absents — notifications ignorées."); return
     now = datetime.now(timezone.utc)
-    iso_z = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")  # pas de "+" : il serait lu comme un espace dans l'URL
-    matchs = get("matchs", f"?statut=eq.a_venir&date_heure=gte.{iso_z(now)}&date_heure=lte.{iso_z(now+timedelta(days=20))}&select=id,date_heure")
+    iso_z = lambda d: d.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Récupère les matchs de maintenant jusqu'à J-15 (+ petite marge de 2 heures)
+    matchs = get("matchs", f"?statut=eq.a_venir&date_heure=gte.{iso_z(now)}&date_heure=lte.{iso_z(now+timedelta(days=15, hours=2))}&select=id,date_heure")
     joueurs = get("joueurs", "?actif=eq.true&select=id,nom")
     for m in matchs:
         date_match = parse_ts(m["date_heure"])
-        jours_restants = (date_match - now).days
+        temps_restant = date_match - now
         presences = {p["joueur_id"]: p["statut"] for p in get("presences", f"?match_id=eq.{m['id']}&select=joueur_id,statut")}
         for j in joueurs:
             statut = presences.get(j["id"])
             if statut in ("oui", "non"):
                 continue  # a déjà répondu
-            if jours_restants <= 4:
+            
+            # Règle 1 : à H-24 (J-1), mise en absence automatique
+            if temps_restant <= timedelta(hours=24):
                 post("presences?on_conflict=match_id,joueur_id", {"match_id": m["id"], "joueur_id": j["id"], "statut": "non"}, prefer="resolution=merge-duplicates")
                 notifier(j["id"], m["id"], "absence_auto",
-                         f"Sans réponse de ta part, tu as été mis automatiquement absent pour le match du {date_match.strftime('%d/%m à %Hh%M')}.")
-            elif not deja_relance_recemment(j["id"], m["id"]):
+                         f"Sans réponse de ta part, tu as été mis automatiquement absent pour le match du {paris_txt(date_match)}.")
+            
+            # Règle 2 : relance tous les 3 jours entre J-15 et J-1
+            elif temps_restant <= timedelta(days=15) and not deja_relance_recemment(j["id"], m["id"]):
                 notifier(j["id"], m["id"], "relance_presence",
-                         f"Dispo pour le match du {date_match.strftime('%d/%m à %Hh%M')} ? Réponds dans l'app.")
-
-def paris_txt(dt):
-    return dt.astimezone(ZoneInfo("Europe/Paris")).strftime("%d/%m à %Hh%M")
+                         f"Dispo pour le match du {paris_txt(date_match)} ? Réponds dans l'app.")
 
 def gerer_vote_disponible():
     """Prévient les joueurs de la FEUILLE DE MATCH (et eux seuls) que le vote est ouvert.
