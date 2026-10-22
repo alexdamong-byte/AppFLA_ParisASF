@@ -1,6 +1,30 @@
 [
   {
+    "equipe": "LE TIR ASCBB C",
+    "points": 8,
+    "joues": 2,
+    "gagnes": 2,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "FC TIKITACOS",
+    "points": 5,
+    "joues": 2,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
+    "equipe": "LA DISTILLERIE FC A",
+    "points": 5,
+    "joues": 2,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
+    "equipe": "PAZIZOU FC A",
     "points": 5,
     "joues": 2,
     "gagnes": 1,
@@ -40,14 +64,6 @@
     "perdus": 0
   },
   {
-    "equipe": "LE TIR ASCBB C",
-    "points": 4,
-    "joues": 1,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
     "equipe": "FC PARIS CLICHY B",
     "points": 4,
     "joues": 1,
@@ -56,12 +72,12 @@
     "perdus": 0
   },
   {
-    "equipe": "PAZIZOU FC A",
-    "points": 4,
-    "joues": 1,
-    "gagnes": 1,
+    "equipe": "PANAMPRIDE FC B",
+    "points": 2,
+    "joues": 2,
+    "gagnes": 0,
     "nuls": 0,
-    "perdus": 0
+    "perdus": 2
   },
   {
     "equipe": "LA DISTILLERIE FC C",
@@ -88,23 +104,7 @@
     "perdus": 1
   },
   {
-    "equipe": "PANAMPRIDE FC B",
-    "points": 1,
-    "joues": 1,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 1
-  },
-  {
     "equipe": "ASTEC FC",
-    "points": 1,
-    "joues": 1,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 1
-  },
-  {
-    "equipe": "LA DISTILLERIE FC A",
     "points": 1,
     "joues": 1,
     "gagnes": 0,
