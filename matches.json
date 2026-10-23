@@ -63,8 +63,11 @@
     "exterieur": "PARIS ASF",
     "date": "2026-10-22T20:00:00",
     "venue": "Parc Interdépartemental de Choisy (Plaine Sud- terrain n° 18)",
-    "score": null,
-    "statut": "upcoming"
+    "score": [
+      0,
+      4
+    ],
+    "statut": "past"
   },
   {
     "competition": "Coupe",
