@@ -16,6 +16,14 @@
     "perdus": 0
   },
   {
+    "equipe": "UAC PARIS 12",
+    "points": 8,
+    "joues": 2,
+    "gagnes": 2,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "FC PARIS CLICHY B",
     "points": 6,
     "joues": 2,
@@ -25,6 +33,14 @@
   },
   {
     "equipe": "FC TIKITACOS",
+    "points": 5,
+    "joues": 2,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
+    "equipe": "LA MEUTE",
     "points": 5,
     "joues": 2,
     "gagnes": 1,
@@ -54,22 +70,6 @@
     "gagnes": 1,
     "nuls": 0,
     "perdus": 1
-  },
-  {
-    "equipe": "UAC PARIS 12",
-    "points": 4,
-    "joues": 1,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
-    "equipe": "LA MEUTE",
-    "points": 4,
-    "joues": 1,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 0
   },
   {
     "equipe": "TECHNIP",
