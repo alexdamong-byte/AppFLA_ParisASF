@@ -77,8 +77,11 @@
     "exterieur": "FC CROCRO",
     "date": "2026-10-26T19:45:00",
     "venue": "Stade Max Roussié",
-    "score": null,
-    "statut": "upcoming"
+    "score": [
+      1,
+      3
+    ],
+    "statut": "past"
   },
   {
     "competition": "Championnat",
