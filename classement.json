@@ -32,7 +32,23 @@
     "perdus": 0
   },
   {
+    "equipe": "PAZIZOU FC A",
+    "points": 6,
+    "joues": 3,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 2
+  },
+  {
     "equipe": "FC TIKITACOS",
+    "points": 5,
+    "joues": 2,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
+    "equipe": "PANAMPRIDE FC C",
     "points": 5,
     "joues": 2,
     "gagnes": 1,
@@ -64,14 +80,6 @@
     "perdus": 1
   },
   {
-    "equipe": "PAZIZOU FC A",
-    "points": 5,
-    "joues": 2,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 1
-  },
-  {
     "equipe": "TECHNIP",
     "points": 3,
     "joues": 2,
@@ -94,14 +102,6 @@
     "gagnes": 0,
     "nuls": 0,
     "perdus": 2
-  },
-  {
-    "equipe": "PANAMPRIDE FC C",
-    "points": 1,
-    "joues": 1,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 1
   },
   {
     "equipe": "ASTEC FC",
