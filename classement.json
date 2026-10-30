@@ -48,14 +48,6 @@
     "perdus": 1
   },
   {
-    "equipe": "PANAMPRIDE FC C",
-    "points": 5,
-    "joues": 2,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 1
-  },
-  {
     "equipe": "LA MEUTE",
     "points": 5,
     "joues": 2,
@@ -74,6 +66,14 @@
   {
     "equipe": "LA DISTILLERIE FC A",
     "points": 5,
+    "joues": 2,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
+    "equipe": "PANAMPRIDE FC C",
+    "points": 0,
     "joues": 2,
     "gagnes": 1,
     "nuls": 0,
