@@ -1,5 +1,13 @@
 [
   {
+    "equipe": "CLAN TETARD FC",
+    "points": 9,
+    "joues": 3,
+    "gagnes": 2,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
     "equipe": "PARIS ASF",
     "points": 8,
     "joues": 2,
@@ -40,6 +48,14 @@
     "perdus": 2
   },
   {
+    "equipe": "LA DISTILLERIE FC A",
+    "points": 6,
+    "joues": 3,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 2
+  },
+  {
     "equipe": "FC TIKITACOS",
     "points": 5,
     "joues": 2,
@@ -49,22 +65,6 @@
   },
   {
     "equipe": "LA MEUTE",
-    "points": 5,
-    "joues": 2,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 1
-  },
-  {
-    "equipe": "CLAN TETARD FC",
-    "points": 5,
-    "joues": 2,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 1
-  },
-  {
-    "equipe": "LA DISTILLERIE FC A",
     "points": 5,
     "joues": 2,
     "gagnes": 1,
