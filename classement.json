@@ -72,6 +72,14 @@
     "perdus": 1
   },
   {
+    "equipe": "ASTEC FC",
+    "points": 5,
+    "joues": 2,
+    "gagnes": 1,
+    "nuls": 0,
+    "perdus": 1
+  },
+  {
     "equipe": "PANAMPRIDE FC C",
     "points": 0,
     "joues": 2,
@@ -81,11 +89,11 @@
   },
   {
     "equipe": "TECHNIP",
-    "points": 3,
-    "joues": 2,
+    "points": 4,
+    "joues": 3,
     "gagnes": 0,
     "nuls": 1,
-    "perdus": 1
+    "perdus": 2
   },
   {
     "equipe": "PANAMPRIDE FC B",
@@ -102,13 +110,5 @@
     "gagnes": 0,
     "nuls": 0,
     "perdus": 2
-  },
-  {
-    "equipe": "ASTEC FC",
-    "points": 1,
-    "joues": 1,
-    "gagnes": 0,
-    "nuls": 0,
-    "perdus": 1
   }
 ]
