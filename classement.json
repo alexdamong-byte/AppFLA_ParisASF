@@ -1,5 +1,13 @@
 [
   {
+    "equipe": "LE TIR ASCBB C",
+    "points": 12,
+    "joues": 3,
+    "gagnes": 3,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "CLAN TETARD FC",
     "points": 9,
     "joues": 3,
@@ -16,14 +24,6 @@
     "perdus": 0
   },
   {
-    "equipe": "LE TIR ASCBB C",
-    "points": 8,
-    "joues": 2,
-    "gagnes": 2,
-    "nuls": 0,
-    "perdus": 0
-  },
-  {
     "equipe": "UAC PARIS 12",
     "points": 8,
     "joues": 2,
@@ -33,11 +33,11 @@
   },
   {
     "equipe": "FC PARIS CLICHY B",
-    "points": 6,
-    "joues": 2,
+    "points": 7,
+    "joues": 3,
     "gagnes": 1,
     "nuls": 1,
-    "perdus": 0
+    "perdus": 1
   },
   {
     "equipe": "PAZIZOU FC A",
