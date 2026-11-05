@@ -91,8 +91,11 @@
     "exterieur": "FC TIKITACOS",
     "date": "2026-11-04T21:30:00",
     "venue": "Stade Municipal de Chatillon",
-    "score": null,
-    "statut": "upcoming"
+    "score": [
+      1,
+      7
+    ],
+    "statut": "past"
   },
   {
     "competition": "Championnat",
