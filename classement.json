@@ -56,6 +56,14 @@
     "perdus": 0
   },
   {
+    "equipe": "PAZIZOU FC A",
+    "points": 8,
+    "joues": 4,
+    "gagnes": 1,
+    "nuls": 1,
+    "perdus": 2
+  },
+  {
     "equipe": "FC PARIS CLICHY B",
     "points": 7,
     "joues": 3,
@@ -70,14 +78,6 @@
     "gagnes": 1,
     "nuls": 0,
     "perdus": 3
-  },
-  {
-    "equipe": "PAZIZOU FC A",
-    "points": 6,
-    "joues": 3,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 2
   },
   {
     "equipe": "PANAMPRIDE FC C",
@@ -96,15 +96,15 @@
     "perdus": 3
   },
   {
-    "equipe": "PANAMPRIDE FC B",
-    "points": 2,
-    "joues": 2,
+    "equipe": "LA DISTILLERIE FC C",
+    "points": 4,
+    "joues": 3,
     "gagnes": 0,
-    "nuls": 0,
+    "nuls": 1,
     "perdus": 2
   },
   {
-    "equipe": "LA DISTILLERIE FC C",
+    "equipe": "PANAMPRIDE FC B",
     "points": 2,
     "joues": 2,
     "gagnes": 0,
