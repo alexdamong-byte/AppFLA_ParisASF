@@ -16,6 +16,14 @@
     "perdus": 0
   },
   {
+    "equipe": "UAC PARIS 12",
+    "points": 12,
+    "joues": 3,
+    "gagnes": 3,
+    "nuls": 0,
+    "perdus": 0
+  },
+  {
     "equipe": "FC TIKITACOS",
     "points": 9,
     "joues": 3,
@@ -46,14 +54,6 @@
     "gagnes": 2,
     "nuls": 0,
     "perdus": 1
-  },
-  {
-    "equipe": "UAC PARIS 12",
-    "points": 8,
-    "joues": 2,
-    "gagnes": 2,
-    "nuls": 0,
-    "perdus": 0
   },
   {
     "equipe": "PAZIZOU FC A",
@@ -105,10 +105,10 @@
   },
   {
     "equipe": "PANAMPRIDE FC B",
-    "points": 2,
-    "joues": 2,
+    "points": 3,
+    "joues": 3,
     "gagnes": 0,
     "nuls": 0,
-    "perdus": 2
+    "perdus": 3
   }
 ]
