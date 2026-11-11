@@ -17,11 +17,19 @@
   },
   {
     "equipe": "LE TIR ASCBB C",
-    "points": 12,
-    "joues": 3,
+    "points": 13,
+    "joues": 4,
     "gagnes": 3,
     "nuls": 0,
-    "perdus": 0
+    "perdus": 1
+  },
+  {
+    "equipe": "ASTEC FC",
+    "points": 13,
+    "joues": 4,
+    "gagnes": 3,
+    "nuls": 0,
+    "perdus": 1
   },
   {
     "equipe": "UAC PARIS 12",
@@ -33,14 +41,6 @@
   },
   {
     "equipe": "LA MEUTE",
-    "points": 9,
-    "joues": 3,
-    "gagnes": 2,
-    "nuls": 0,
-    "perdus": 1
-  },
-  {
-    "equipe": "ASTEC FC",
     "points": 9,
     "joues": 3,
     "gagnes": 2,
