@@ -40,6 +40,14 @@
     "perdus": 0
   },
   {
+    "equipe": "LA DISTILLERIE FC A",
+    "points": 12,
+    "joues": 6,
+    "gagnes": 2,
+    "nuls": 0,
+    "perdus": 4
+  },
+  {
     "equipe": "LA MEUTE",
     "points": 9,
     "joues": 3,
@@ -57,11 +65,11 @@
   },
   {
     "equipe": "FC PARIS CLICHY B",
-    "points": 8,
-    "joues": 4,
+    "points": 9,
+    "joues": 5,
     "gagnes": 1,
     "nuls": 1,
-    "perdus": 2
+    "perdus": 3
   },
   {
     "equipe": "PAZIZOU FC A",
@@ -78,14 +86,6 @@
     "gagnes": 1,
     "nuls": 1,
     "perdus": 2
-  },
-  {
-    "equipe": "LA DISTILLERIE FC A",
-    "points": 8,
-    "joues": 5,
-    "gagnes": 1,
-    "nuls": 0,
-    "perdus": 4
   },
   {
     "equipe": "PANAMPRIDE FC C",
