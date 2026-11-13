@@ -1,14 +1,14 @@
 [
   {
-    "equipe": "FC TIKITACOS",
-    "points": 13,
-    "joues": 4,
-    "gagnes": 3,
+    "equipe": "CLAN TETARD FC",
+    "points": 17,
+    "joues": 5,
+    "gagnes": 4,
     "nuls": 0,
     "perdus": 1
   },
   {
-    "equipe": "CLAN TETARD FC",
+    "equipe": "FC TIKITACOS",
     "points": 13,
     "joues": 4,
     "gagnes": 3,
@@ -105,10 +105,10 @@
   },
   {
     "equipe": "PANAMPRIDE FC B",
-    "points": 3,
-    "joues": 3,
+    "points": 4,
+    "joues": 4,
     "gagnes": 0,
     "nuls": 0,
-    "perdus": 3
+    "perdus": 4
   }
 ]
