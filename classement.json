@@ -8,15 +8,15 @@
     "perdus": 1
   },
   {
-    "equipe": "FC TIKITACOS",
-    "points": 13,
-    "joues": 4,
-    "gagnes": 3,
+    "equipe": "LE TIR ASCBB C",
+    "points": 17,
+    "joues": 5,
+    "gagnes": 4,
     "nuls": 0,
     "perdus": 1
   },
   {
-    "equipe": "LE TIR ASCBB C",
+    "equipe": "FC TIKITACOS",
     "points": 13,
     "joues": 4,
     "gagnes": 3,
@@ -49,11 +49,11 @@
   },
   {
     "equipe": "LA MEUTE",
-    "points": 9,
-    "joues": 3,
+    "points": 10,
+    "joues": 4,
     "gagnes": 2,
     "nuls": 0,
-    "perdus": 1
+    "perdus": 2
   },
   {
     "equipe": "PARIS ASF",
