@@ -1,6 +1,14 @@
 [
   {
     "equipe": "CLAN TETARD FC",
+    "points": 18,
+    "joues": 6,
+    "gagnes": 4,
+    "nuls": 0,
+    "perdus": 2
+  },
+  {
+    "equipe": "FC TIKITACOS",
     "points": 17,
     "joues": 5,
     "gagnes": 4,
@@ -16,12 +24,12 @@
     "perdus": 1
   },
   {
-    "equipe": "FC TIKITACOS",
-    "points": 13,
+    "equipe": "UAC PARIS 12",
+    "points": 16,
     "joues": 4,
-    "gagnes": 3,
+    "gagnes": 4,
     "nuls": 0,
-    "perdus": 1
+    "perdus": 0
   },
   {
     "equipe": "ASTEC FC",
@@ -30,14 +38,6 @@
     "gagnes": 3,
     "nuls": 0,
     "perdus": 1
-  },
-  {
-    "equipe": "UAC PARIS 12",
-    "points": 12,
-    "joues": 3,
-    "gagnes": 3,
-    "nuls": 0,
-    "perdus": 0
   },
   {
     "equipe": "LA DISTILLERIE FC A",
@@ -105,10 +105,10 @@
   },
   {
     "equipe": "PANAMPRIDE FC B",
-    "points": 4,
-    "joues": 4,
+    "points": 5,
+    "joues": 5,
     "gagnes": 0,
     "nuls": 0,
-    "perdus": 4
+    "perdus": 5
   }
 ]
