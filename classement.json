@@ -1,19 +1,19 @@
 [
   {
-    "equipe": "CLAN TETARD FC",
-    "points": 18,
-    "joues": 6,
-    "gagnes": 4,
-    "nuls": 0,
-    "perdus": 2
-  },
-  {
     "equipe": "FC TIKITACOS",
-    "points": 17,
-    "joues": 5,
-    "gagnes": 4,
+    "points": 21,
+    "joues": 6,
+    "gagnes": 5,
     "nuls": 0,
     "perdus": 1
+  },
+  {
+    "equipe": "CLAN TETARD FC",
+    "points": 19,
+    "joues": 7,
+    "gagnes": 4,
+    "nuls": 0,
+    "perdus": 3
   },
   {
     "equipe": "LE TIR ASCBB C",
